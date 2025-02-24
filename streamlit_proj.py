@@ -7,7 +7,6 @@ import seaborn as sns
 import requests
 import io
 
-st.title('Prognoosimudeli tulemus')
 
 # Data files and constant values 
 URL_1 = 'https://raw.githubusercontent.com/klesment/PopProj/main/ESTasfrRR.txt'
@@ -160,21 +159,20 @@ def ramp_fun(TFR_chng,speed,pr_per):
 
 
 # Figure
-plt.rcParams['figure.figsize'] = [14, 10]
+plt.rcParams['figure.figsize'] = [9, 5]
 
-st.sidebar.title('Sisendid')
-st.sidebar.write("**Proovi erinevaid parameetreid**")
+st.sidebar.write('Vali prognoosimiseks soovitud parameetrid')
 
-option_map = {5: "Aeglane", 6: "Keskmine", 8: "Kiire"}
+option_map = {5: "Aeglasem", 6: "Keskmine", 8: "Kiirem"}
 def user_input_features():
-    TFR_Change  = st.sidebar.number_input("Sündimustaseme muutus protsentides perioodi lõpuks võrreldes algusega", 
-                                          min_value=-90, max_value=100, step=10, value=0)/100
-    Ramp = st.sidebar.segmented_control("Muutuse rakendumise kiirus", 
+    TFR_Change  = st.sidebar.number_input("Sündimustaseme muutus protsentides võrreldes 2019.a", 
+                                          min_value=-50, max_value=50, step=10, value=0)/100
+    Ramp = st.sidebar.segmented_control("Sündimustaseme muutuse kiirus", 
                                         options=option_map.keys(), 
                                         format_func=lambda option: option_map[option], 
                                         selection_mode='single', default=6)
-    MAB_end = st.sidebar.slider("MAB", min_value=27, max_value=33, step=1, value=30)
-    Years = st.sidebar.slider("Years", min_value=0, max_value=100, step=5, value=5)
+    MAB_end = st.sidebar.number_input("Keskmine sünnitusvanus", min_value=27, max_value=33, step=1, value=31)
+    Years = st.sidebar.slider("Prognoositav periood", min_value=5, max_value=100, step=5, value=10)
     return TFR_Change, Ramp, MAB_end, Years
     
 
@@ -215,36 +213,41 @@ LL = np.array(D.apply(leslie, axis=1))
 # projection function
 out = project_dyn(LL, N0, period)
 # Population size
-p_size_start,p_size_end = round(sum(pop['Total'][pop['Year']==base_year])/1000_000,3),round(sum(out)/1000000, 3)
+p_size_start,p_size_end = sum(pop['Total'][pop['Year']==base_year]),sum(out)
 
-# 
-plt.rcParams['axes.labelsize'] = 20
-plt.rcParams['axes.titlesize'] = 20
-
-col1, col2 = st.columns([2, 1])
+# Plotting
+col1, col2 = st.columns([1, 1])
 
 with col1:
     # TFR plot
-    d_plot = sns.lineplot(data=d, x=range(1,period+1,1), y="tfr")
-    d_plot.set(xlabel='Aasta', ylabel='TFR')
-    st.pyplot(d_plot.get_figure())
+    sns.set_style("whitegrid")
+    sns.set_context("notebook", font_scale=2)
+    tfr_plot = sns.lineplot(data=d, x=list(range(base_year, base_year + len(LL), 1)), y='tfr', linewidth=2.5, ax=plt.gca())
+    tfr_plot.set(ylabel='Summaarkordaja', xlabel='Aasta')
+    st.pyplot(tfr_plot.get_figure())
+    st.caption(f"Summmaarkordaja prognoositud muutus {base_year} - {base_year + len(LL)}")
 
 with col2:
-    st.write(f"Aastal {base_year} on sündimustase {tfr_start} ja keskmine vanus sünnil {mab_start}. Inimesi on kokku {p_size_start} miljonit.")
-    st.write(f"Aastal {base_year + len(LL)} on sündimustase {tfr_last} ja keskmine vanus sünnil {mab_stop}. Inimesi on kokku {p_size_end} Mio.")
-    st.write(f"Aastal {base_year + len(LL)} sünnib {round(out[0])} last")
-    st.write(f"Rahvaarv on {base_year + len(LL)}. aastal {round(p_size_end/p_size_start*100,1)} protsenti {base_year}. aasta omast")
+    a, b = st.columns(2)
+    c, d = st.columns(2)
 
-# plt.clf()
+    a.metric(f"Summaarkordaja {base_year + period}", tfr_last, round(tfr_last-tfr_start, 1), border=True)
+    b.metric(f"Sünnitusvanus {base_year + period}", mab_stop, round(mab_stop-mab_start), border=True)
+    c.metric(f"Rahvaarv (milj.)  {base_year + period}", round(p_size_end/1000000,3), round(p_size_end-p_size_start, 0), border=True)
+    d.metric(f"Sündide arv {base_year + period}", round(out[0]), "", border=True)
 
-p = sns.barplot(x=range(0,110,1), y=out, linewidth=2.5)
-if period<151:
-    plt.plot([period-1,period-1], [5000,15000], color='red', ls='dotted',linewidth=4)
-    p.set(xlabel='Vanus', ylabel='Inimeste arv')
-    plt.yticks(fontsize=16)
-    plt.xticks(fontsize=16)
-    plt.xticks(np.arange(0, 110, 5))
 
-st.write(f"Prognoositakse vanusstruktuuri {base_year + len(LL)}. aastal, eeldades sündimustaseme muutust 2019. aasta suhtes {TFR_Change*100} protsenti")
+plt.clf()
+
+st.divider()
+sns.set_style("whitegrid")
+sns.set_context("notebook", font_scale=1)
+p = sns.barplot(x=range(0,110,1), y=pd.Series(out))
+plt.plot([period-1,period-1], [5000,15000], color='red', ls='dotted',linewidth=4)
+p.set(xlabel='1-aastane vanusrühm', ylabel='Inimesi vanusrühmas')
+plt.yticks(fontsize=12)
+plt.xticks(fontsize=12)
+plt.xticks(np.arange(0, 100, 5))
+st.caption(f"Prognoositud vanuskoostis {base_year + period} aastal")
 
 st.pyplot(p.get_figure())
