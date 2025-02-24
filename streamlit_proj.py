@@ -7,7 +7,6 @@ import seaborn as sns
 import requests
 import io
 
-
 # Data files and constant values 
 URL_1 = 'https://raw.githubusercontent.com/klesment/PopProj/main/ESTasfrRR.txt'
 URL_2 = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT.txt'
@@ -40,7 +39,6 @@ mab = 30.62
 sd_mab = 5.62
 
 # Constructing and populating the Leslie matrix
-# starting values
 base_year = 2019
 
 # life table
@@ -161,18 +159,18 @@ def ramp_fun(TFR_chng,speed,pr_per):
 # Figure
 plt.rcParams['figure.figsize'] = [9, 5]
 
-st.sidebar.write('Vali prognoosimiseks soovitud parameetrid')
+st.sidebar.write('Vali prognoosi eeldused: sündimustaseme (TFR) muutus, muutuse kiirus, keskmine sünnitusvanus ja prognoosi pikkus.')
 
 option_map = {5: "Aeglasem", 6: "Keskmine", 8: "Kiirem"}
 def user_input_features():
-    TFR_Change  = st.sidebar.number_input("Sündimustaseme muutus protsentides võrreldes 2019.a", 
+    TFR_Change  = st.sidebar.number_input("TFR muutus % võrreldes 2019.a", 
                                           min_value=-50, max_value=50, step=10, value=0)/100
-    Ramp = st.sidebar.segmented_control("Sündimustaseme muutuse kiirus", 
+    Ramp = st.sidebar.segmented_control("TFR muutuse kiirus", 
                                         options=option_map.keys(), 
                                         format_func=lambda option: option_map[option], 
                                         selection_mode='single', default=6)
     MAB_end = st.sidebar.number_input("Keskmine sünnitusvanus", min_value=27, max_value=33, step=1, value=31)
-    Years = st.sidebar.slider("Prognoositav periood", min_value=5, max_value=100, step=5, value=10)
+    Years = st.sidebar.slider("Prognoosi pikkus (aastat)", min_value=5, max_value=100, step=5, value=10)
     return TFR_Change, Ramp, MAB_end, Years
     
 
@@ -231,7 +229,7 @@ with col2:
     a, b = st.columns(2)
     c, d = st.columns(2)
 
-    a.metric(f"Summaarkordaja {base_year + period}", tfr_last, round(tfr_last-tfr_start, 1), border=True)
+    a.metric(f"TFR {base_year + period}", tfr_last, round(tfr_last-tfr_start, 1), border=True)
     b.metric(f"Sünnitusvanus {base_year + period}", mab_stop, round(mab_stop-mab_start), border=True)
     c.metric(f"Rahvaarv (milj.)  {base_year + period}", round(p_size_end/1000000,3), round(p_size_end-p_size_start, 0), border=True)
     d.metric(f"Sündide arv {base_year + period}", round(out[0]), "", border=True)
