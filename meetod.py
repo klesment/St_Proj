@@ -37,11 +37,71 @@ mis on iga-aastase sündimustaseme levinum näitaja.
     ''')   
             
 st.markdown('''
-            Leslie maatriks (https://en.wikipedia.org/wiki/Leslie_matrix) on 
-            rahvastikuprgonoosi meetod, mille sisendiks on vanuspõhised 
-            sündimuskordajad ja suremustõenäosused.
+            Leslie maatriks (https://en.wikipedia.org/wiki/Leslie_matrix) on maatriks, 
+            mida kasutatakse elanikkonna struktuuri projitseerimiseks järgmisele ajaperioodile. Maatriksi
+            suurus vastab elanikkonna vanuserühmade arvule. See sisaldab nii ellujäämise tõenäosusi kui ka sündimuskordajaid. 
             ''')
          
+
+
+st.write("""
+- Olgu \( x \) veerg, mis esindab elanikkonna vanuselist struktuuri baas-aastal (tähistame seda \( t_0 \) järgi). Veeru elemendid esindavad erinevates vanuserühmades olevaid inimesi (näiteks 0-4 aastat, 5-9 aastat jne).
+
+- Maatriks \( \mathbf{L} \) on Leslie maatriks, mida kasutatakse elanikkonna struktuuri projitseerimiseks järgmisele ajaperioodile. Maatriksi \( \mathbf{L} \) suurus vastab elanikkonna vanuserühmade arvule. See sisaldab nii ellujäämismäärasid kui ka viljakusmäära.
+
+  - Leslie maatriksi \( \mathbf{L} \) elemendid on paigutatud nii, et:
+    - \( \mathbf{L} \) esimene rida sisaldab viljakusmäära, see tähendab, kui palju järglasi toodetakse iga vanuserühma isikute poolt.
+    - Alamdiagonaalis (peadiagonaali all olevad elemendid) on ellujäämismäärad, mis näitavad, kui tõenäoline on, et iga vanuserühma isikud elavad järgmisesse vanuserühma.
+    - Kõik teised elemendid on nullid (ei toimu otsest üleminekut ühelt vanuserühma teise kaugemasse).
+""")
+
+st.subheader("Protsess")
+st.write("""
+1. **Baas-aasta elanikkonna struktuur \( x \)**: See on sinu algne elanikkonna struktuur aastal \( t_0 \), esindatud veeruga \( x \).
+   
+2. **Leslie maatriksi \( \mathbf{L} \) rakendamine**: Kui vanuseline struktuur \( x \) korrutatakse Leslie maatriksiga \( \mathbf{L} \), on tulemuseks elanikkonna struktuur järgmise ajaperioodi, \( t_0 + 1 \), järgi, mida tähistame kui \( x_t \). Spetsiifiliselt:
+   \[
+   x_t = \mathbf{L} \cdot x
+   \]
+
+3. **Uued vastsündinud**: \( x_t \) esimene element, mis vastab uutele vastsündinutele, arvutatakse fertiilsusmäära (Leslie maatriksi esimene rida) ja vastavate vanuserühmade \( x \) järgi. See on iga vanuserühma poolt toodetud laste kogusumma.
+
+4. **Rahvastiku vananemine**: \( x_t \) teised elemendid vastavad isikutele, kes on vananenud ühe perioodi võrra (näiteks 0-4 aastast 5-9 aastaseks, 5-9 aastast 10-14 aastaseks jne), tuginedes ellujäämismääradele.
+""")
+
+st.subheader("Näide")
+st.write("""
+Eeldame, et meil on lihtne mudel 3 vanuserühmaga (0-4, 5-9, 10-14):
+
+- Baas-aasta elanikkonna vektor \( x \) võib välja näha selline:  
+  \[
+  x = \begin{pmatrix} 1000 \\ 500 \\ 300 \end{pmatrix}
+  \]
+  Siin on 1000 isikut 0-4 vanuserühmas, 500 5-9 vanuserühmas ja 300 10-14 vanuserühmas.
+
+- Leslie maatriks \( \mathbf{L} \) võib välja näha selline:
+  \[
+  \mathbf{L} = \begin{pmatrix} 
+  0.2 & 0.3 & 0 \\
+  0.5 & 0 & 0 \\
+  0 & 0.7 & 0.8
+  \end{pmatrix}
+  \]
+  See maatriks näitab järgmist:
+  - Fertiliteedi määrad on 0.2 ja 0.3 esimese ja teise vanuserühma puhul, kolmandal vanuserühmal ei ole viljakuse panust.
+  - Ellujäämismäärad on 0.5 esimese ja teise vanuserühma vahel, samuti 0.7 ja 0.8 teise ja kolmanda vanuserühma vahel.
+
+- Kui korrutada maatriks \( \mathbf{L} \) vektoriga \( x \), saame:
+  \[
+  x_t = \mathbf{L} \cdot x
+  \]
+""")
+
+st.header("Kood")
+st.write("""
+Järgmine kood näitab, kuidas seda arvestust Pythonis rakendada, kasutades NumPy raamatukogu:
+""")
+
 
 st.markdown('''
         Kasutame järgmisi tähistusi:
@@ -54,9 +114,6 @@ st.markdown('''
 
 
 st.write('An example of a Leslie matrix with only three age groups:')
-
-
-
 
 st.latex(r'''
 \mathbf{L}=%

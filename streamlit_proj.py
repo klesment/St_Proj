@@ -8,9 +8,9 @@ import requests
 import io
 
 # Data files and constant values 
-URL_1 = 'https://raw.githubusercontent.com/klesment/PopProj/main/ESTasfrRR.txt'
-URL_2 = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT.txt'
-URL_3 = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population.txt'
+URL_1 = 'https://raw.githubusercontent.com/klesment/PopProj/main/ESTasfrRR_2019.txt'
+URL_2 = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_2019.txt'
+URL_3 = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population_2019.txt'
 
 @st.cache_data
 def load_data(url):
