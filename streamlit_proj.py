@@ -157,9 +157,9 @@ def ramp_fun(TFR_chng,speed,pr_per):
 
 
 # Figure
-plt.rcParams['figure.figsize'] = [9, 5]
+plt.rcParams['figure.figsize'] = [8, 4.5]
 
-st.sidebar.write('Vali prognoosi eeldused: sündimustaseme (TFR) muutus, muutuse kiirus, keskmine sünnitusvanus ja prognoosi pikkus.')
+st.sidebar.markdown('''Vali prognoosi eeldused: sündimustaseme (TFR) muutus, muutuse kiirus, keskmine sünnitusvanus ja prognoosi pikkus.''')
 
 option_map = {5: "Aeglasem", 6: "Keskmine", 8: "Kiirem"}
 def user_input_features():
@@ -169,10 +169,12 @@ def user_input_features():
                                         options=option_map.keys(), 
                                         format_func=lambda option: option_map[option], 
                                         selection_mode='single', default=6)
-    MAB_end = st.sidebar.number_input("Keskmine sünnitusvanus", min_value=27, max_value=33, step=1, value=31)
-    Years = st.sidebar.slider("Prognoosi pikkus (aastat)", min_value=5, max_value=100, step=5, value=10)
+    MAB_end = st.sidebar.number_input("Keskmine sünnitusvanus", min_value=27.0, max_value=33.0, step=0.5, value=mab)
+    Years = st.sidebar.slider("Prognoosi pikkus (aastat)", min_value=5, max_value=100, step=5, value=5)
     return TFR_Change, Ramp, MAB_end, Years
     
+
+
 
 TFR_Change, Ramp, MAB_end, Years = user_input_features()
 
@@ -222,17 +224,17 @@ with col1:
     sns.set_context("notebook", font_scale=2)
     tfr_plot = sns.lineplot(data=d, x=list(range(base_year, base_year + len(LL), 1)), y='tfr', linewidth=2.5, ax=plt.gca())
     tfr_plot.set(ylabel='Summaarkordaja', xlabel='Aasta')
-    st.pyplot(tfr_plot.get_figure())
     st.caption(f"Summmaarkordaja prognoositud muutus {base_year} - {base_year + len(LL)}")
+    st.pyplot(tfr_plot.get_figure())
 
 with col2:
     a, b = st.columns(2)
     c, d = st.columns(2)
 
-    a.metric(f"TFR {base_year + period}", tfr_last, round(tfr_last-tfr_start, 1), border=True)
-    b.metric(f"Sünnitusvanus {base_year + period}", mab_stop, round(mab_stop-mab_start), border=True)
-    c.metric(f"Rahvaarv (milj.)  {base_year + period}", round(p_size_end/1000000,3), round(p_size_end-p_size_start, 0), border=True)
-    d.metric(f"Sündide arv {base_year + period}", round(out[0]), "", border=True)
+    a.metric(f"TFR {base_year + period}", tfr_last, round(tfr_last-tfr_start, 1), border=False)
+    b.metric(f"Sünnitusvanus {base_year + period}", round(mab_stop,1), round(mab_stop-mab_start,1), border=False)
+    c.metric(f"Rahvaarv (milj.)  {base_year + period}", round(p_size_end/1000000,3), round(p_size_end-p_size_start), border=False)
+    d.metric(f"Sündide arv {base_year + period}", round(out[0]), "", border=False)
 
 
 plt.clf()
@@ -241,7 +243,7 @@ st.divider()
 sns.set_style("whitegrid")
 sns.set_context("notebook", font_scale=1)
 p = sns.barplot(x=range(0,110,1), y=pd.Series(out))
-plt.plot([period-1,period-1], [5000,15000], color='red', ls='dotted',linewidth=4)
+plt.plot([period-1,period-1], [0,20000], color='red', ls='dotted',linewidth=4)
 p.set(xlabel='1-aastane vanusrühm', ylabel='Inimesi vanusrühmas')
 plt.yticks(fontsize=12)
 plt.xticks(fontsize=12)
@@ -249,3 +251,4 @@ plt.xticks(np.arange(0, 100, 5))
 st.caption(f"Prognoositud vanuskoostis {base_year + period} aastal")
 
 st.pyplot(p.get_figure())
+
