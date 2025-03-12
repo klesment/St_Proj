@@ -158,14 +158,21 @@ def ramp_fun(TFR_chng,speed,pr_per):
 
 # Figure
 plt.rcParams['figure.figsize'] = [8, 4.5]
+st.sidebar.markdown('''Prognoosi algusaasta on 2019''')
 
-st.sidebar.markdown('''Vali prognoosi eeldused: sündimustaseme (TFR) muutus, muutuse kiirus, keskmine sünnitusvanus ja prognoosi pikkus.''')
+st.sidebar.markdown('''Vali allpool prognoosi eeldused: 
+                    
+1. sündimustaseme muutus (%) prognoositava perioodi lõpus 2019. a suhtes ja muutuse kiirus (kuvatakse ülemisel väiksel joonisel) 
+2. keskmine sünnitusvanus prognoositava perioodi lõpus
+3. prognoosi pikkus (aastat)
+                    ''')
 
+st.sidebar.divider()
 option_map = {5: "Aeglasem", 6: "Keskmine", 8: "Kiirem"}
 def user_input_features():
-    TFR_Change  = st.sidebar.number_input("TFR muutus % võrreldes 2019.a", 
+    TFR_Change  = st.sidebar.number_input("Sündimustaseme muutus % võrreldes 2019.a", 
                                           min_value=-50, max_value=50, step=10, value=0)/100
-    Ramp = st.sidebar.segmented_control("TFR muutuse kiirus", 
+    Ramp = st.sidebar.segmented_control("Muutuse kiirus", 
                                         options=option_map.keys(), 
                                         format_func=lambda option: option_map[option], 
                                         selection_mode='single', default=6)
@@ -224,7 +231,7 @@ with col1:
     sns.set_context("notebook", font_scale=2)
     tfr_plot = sns.lineplot(data=d, x=list(range(base_year, base_year + len(LL), 1)), y='tfr', linewidth=2.5, ax=plt.gca())
     tfr_plot.set(ylabel='Summaarkordaja', xlabel='Aasta')
-    st.caption(f"Summmaarkordaja prognoositud muutus {base_year} - {base_year + len(LL)}")
+    st.caption(f"Sündimustaseme etteantud muutus {base_year} - {base_year + len(LL)}")
     st.pyplot(tfr_plot.get_figure())
 
 with col2:
@@ -252,3 +259,4 @@ st.caption(f"Prognoositud vanuskoostis {base_year + period} aastal")
 
 st.pyplot(p.get_figure())
 
+st.caption("Punasest vertikaaljoonest vasakule jäävad prognoositud vanusrühmad")
