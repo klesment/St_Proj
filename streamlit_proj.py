@@ -160,11 +160,11 @@ def ramp_fun(TFR_chng,speed,pr_per):
 plt.rcParams['figure.figsize'] = [8, 4.5]
 st.sidebar.markdown('''Prognoosi algusaasta on 2019''')
 
-st.sidebar.markdown('''Vali allpool prognoosi eeldused: 
+st.sidebar.markdown('''Vali prognoosi eeldused: 
                     
-1. sündimustaseme muutus (%) prognoositava perioodi lõpus 2019. a suhtes ja muutuse kiirus (kuvatakse ülemisel väiksel joonisel) 
-2. keskmine sünnitusvanus prognoositava perioodi lõpus
-3. prognoosi pikkus (aastat)
+1. sündimustaseme muutus (%) perioodi lõpuks 2019. a suhtes ja muutuse kiirus (kuvatakse ülemisel väiksel joonisel) 
+2. keskmine sünnitusvanus perioodi lõpus
+3. periood aastates
                     ''')
 
 st.sidebar.divider()
