@@ -8,8 +8,8 @@ neid jääb vähemaks surres või välja rännates. Teades rahvastiku suurust ja
 prognoosida rahvastiku suurust ja vanuselist koosseisu järgnevatel aastatel, vastavalt sellele, kuidas eeldatakse sündimuse, 
 suremus ja rände muutust järgnevatel aastatel. 
 
-Arusaadavalt tuleviku sündimus,  suremus ja rändevood ei ole teada. Prognoosimiseks on vaja nende kohta teha eeldusi ehk oletada, mis suunas 
-            vastavad arengud võiksid toimuda. 
+Arusaadavalt tuleviku sündimus,  suremus ja rändevood ei ole teada. Prognoosimiseks on vaja nende kohta teha eeldusi 
+            ehk oletada, mis suunas vastavad arengud võiksid toimuda. 
 
 Käesolev prognoosimudel keskendub ainult sündimuse komponendile. 
 Mudel võimaldab teatud piirides sündimuse muutust puudutavate eeldustega manipuleerida. Näiteks anda prognoosimiseks ette:
@@ -109,9 +109,9 @@ Vanusepõhiste sündimuskordajate modelleerimiseks kasutame nn Gamma-mudelit. Se
 - summaarne sündimuskordaja (TFR)
 - Keskmine sünnitusvanus (MAB)
 - Keskmise sünnitusvanuse standardhälve (sdMAB)
-'''
          
 Gamma-mudel ja selle parameetrid on defineeritud järgmiselt:)
+''')
 
 st.latex(r"""
          \Large{     
