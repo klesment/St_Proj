@@ -236,15 +236,11 @@ sns.set_style("whitegrid")
 sns.set_context("notebook", font_scale=1)
 fig2, ax2 = plt.subplots(figsize=(10, 8))
 
-# Native population
 ax2.barh(ages,  nat_f, color='#e05252', label='Naised, eesti emakeel')
 ax2.barh(ages, -nat_m, color='#2e86c1', label='Mehed, eesti emakeel')
-
-# Immigrant population stacked on native
 ax2.barh(ages,  imm_f, left= nat_f, color='#e8923a', label='Naised, muu emakeel')
 ax2.barh(ages, -imm_m, left=-nat_m, color='#3aae82', label='Mehed, muu emakeel')
 
-# Dividing line between data cohorts (age >= period) and projected cohorts (age < period)
 if period > 0:
     ax2.axhline(period - 0.5, color='black', linewidth=1.2, linestyle='--',
                 label=f'Prognoosipiir (sündinud {BASE_YEAR + 1}–{BASE_YEAR + period})')
@@ -257,7 +253,7 @@ ax2.axvline(0, color='black', linewidth=0.8)
 ax2.legend(loc='upper left')
 
 st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
-st.pyplot(fig2)
+st.pyplot(fig2, use_container_width=True)
 plt.close(fig2)
 
 # --- Structural indicators ---
