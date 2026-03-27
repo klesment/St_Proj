@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import io
 from scipy.special import gamma
+from scipy.interpolate import PchipInterpolator
 
 # Data URLs
 URL_ASFR = 'https://raw.githubusercontent.com/klesment/PopProj/main/ESTasfrRR_2023.txt'
@@ -10,6 +11,9 @@ URL_LT        = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Fema
 URL_LT_MALE   = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Male_2024.txt'
 URL_POP     = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population_2025.txt'
 URL_TFRMAB  = 'https://raw.githubusercontent.com/klesment/PopProj/main/EST_TFRMAB_2023.txt'
+URL_IMMIG_STOCK  = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_stock_2025.csv'
+URL_IMMIG_INFLOW = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_inflow_dist.csv'
+URL_EMIG_RATES   = 'https://raw.githubusercontent.com/klesment/PopProj/main/emig_rates.csv'
 
 # Demographic constants
 BASE_YEAR           = 2023
@@ -33,6 +37,9 @@ AGE_SCHOOL_MAX = 18   # end of compulsory education (ages 7–17)
 AGE_WORK_MIN   = 18   # working-age lower bound
 AGE_WORK_MAX   = 65   # standard working-age upper bound (ages 15–64)
 AGE_OLD_MIN    = 65   # old-age lower bound
+
+# Immigration constants — derived from RVR09 2019-2021 average, excl. Estonian returnees
+IMMIG_FEMALE_SHARE = 0.3942   # share of annual inflow that is female
 
 
 def load_data(url):
@@ -134,34 +141,168 @@ def build_male_survival(lt_male):
     return SUBD_m
 
 
-def project_both_sexes(lmat_female, subd_male, l0_ratio, pop_female, pop_male, per):
+def build_immig_vectors(annual_total, dist_female, dist_male, per):
     """
-    Project female and male populations simultaneously.
+    Build per-year immigration vectors from a constant annual total and
+    pre-computed single-year age distributions.
 
-    lmat_female - list of yearly female Leslie matrices
-    subd_male   - male survival vector (length MAX_AGE)
-    l0_ratio    - L0_male / L0_female: first-year survival ratio used to scale male births
-    pop_female  - initial female population vector
-    pop_male    - initial male population vector
-    per         - number of years to project
+    annual_total - scalar: total immigrants per year (both sexes)
+    dist_female  - normalised age distribution for females (length MAX_AGE)
+    dist_male    - normalised age distribution for males  (length MAX_AGE)
+    per          - number of projection years
+
+    Returns (imm_f, imm_m): arrays of shape (per, MAX_AGE).
     """
-    N_f = np.array(pop_female, dtype=float)
-    N_m = np.array(pop_male,   dtype=float)
+    female_annual = annual_total * IMMIG_FEMALE_SHARE
+    male_annual   = annual_total * (1 - IMMIG_FEMALE_SHARE)
+    imm_f = np.outer(np.full(per, female_annual), dist_female)
+    imm_m = np.outer(np.full(per, male_annual),   dist_male)
+    return imm_f, imm_m
 
+
+def project_both_sexes(lmat_female, subd_male, l0_ratio,
+                       pop_native_f, pop_native_m,
+                       pop_immig_f,  pop_immig_m,
+                       imm_f, imm_m,
+                       emig_nat_f, emig_nat_m,
+                       emig_imm_f, emig_imm_m,
+                       per):
+    """
+    Project native and immigrant populations simultaneously.
+
+    lmat_female  - array of yearly female Leslie matrices (per, MAX_AGE, MAX_AGE)
+    subd_male    - male survival vector (length MAX_AGE)
+    l0_ratio     - L0_male / L0_female: first-year survival ratio for male births
+    pop_native_f - initial native female vector
+    pop_native_m - initial native male vector
+    pop_immig_f  - initial immigrant female vector
+    pop_immig_m  - initial immigrant male vector
+    imm_f        - annual female immigration vectors (per, MAX_AGE)
+    imm_m        - annual male   immigration vectors (per, MAX_AGE)
+    emig_nat_f   - annual emigration rates, native female  (length MAX_AGE)
+    emig_nat_m   - annual emigration rates, native male    (length MAX_AGE)
+    emig_imm_f   - annual emigration rates, immigrant female (length MAX_AGE)
+    emig_imm_m   - annual emigration rates, immigrant male   (length MAX_AGE)
+    per          - number of years to project
+
+    Order each year: survival/births → emigration → immigration inflow.
+    Children of immigrant mothers join the immigrant stock.
+    Returns (native_f, native_m, immig_f, immig_m).
+    """
+    N_nat_f = np.array(pop_native_f, dtype=float)
+    N_nat_m = np.array(pop_native_m, dtype=float)
+    N_imm_f = np.array(pop_immig_f,  dtype=float)
+    N_imm_m = np.array(pop_immig_m,  dtype=float)
     male_birth_factor = SEX_RATIO_AT_BIRTH * l0_ratio
 
     for i in range(per):
-        N_f_new = np.dot(lmat_female[i], N_f)
+        # --- survival + births ---
+        N_nat_f_new  = np.dot(lmat_female[i], N_nat_f)
+        leslie_imm_f = np.dot(lmat_female[i], N_imm_f)
 
-        N_m_new = np.zeros(MAX_AGE)
-        N_m_new[1:]  = N_m[:-1] * subd_male[:-1]   # survival of each cohort
-        N_m_new[-1] += N_m[-1]  * subd_male[-1]    # open age group
-        N_m_new[0]   = N_f_new[0] * male_birth_factor  # new male births
+        N_nat_m_new       = np.zeros(MAX_AGE)
+        N_nat_m_new[1:]   = N_nat_m[:-1] * subd_male[:-1]
+        N_nat_m_new[-1]  += N_nat_m[-1]  * subd_male[-1]
+        N_nat_m_new[0]    = N_nat_f_new[0] * male_birth_factor
 
-        N_f = N_f_new
-        N_m = N_m_new
+        N_imm_m_new       = np.zeros(MAX_AGE)
+        N_imm_m_new[1:]   = N_imm_m[:-1] * subd_male[:-1]
+        N_imm_m_new[-1]  += N_imm_m[-1]  * subd_male[-1]
+        N_imm_m_new[0]    = leslie_imm_f[0] * male_birth_factor
 
-    return N_f, N_m
+        # --- emigration (applied as rates to post-survival stock) ---
+        N_nat_f_new  *= (1 - emig_nat_f)
+        N_nat_m_new  *= (1 - emig_nat_m)
+        N_imm_f_new   = leslie_imm_f * (1 - emig_imm_f)
+        N_imm_m_new  *= (1 - emig_imm_m)
+
+        # --- immigration inflow ---
+        N_imm_f_new  += imm_f[i]
+        N_imm_m_new  += imm_m[i]
+
+        N_nat_f, N_nat_m = N_nat_f_new, N_nat_m_new
+        N_imm_f, N_imm_m = N_imm_f_new, N_imm_m_new
+
+    return N_nat_f, N_nat_m, N_imm_f, N_imm_m
+
+
+def _disaggregate_5yr(counts_5yr, lx):
+    """
+    Disaggregate 18 five-year age group counts (0-4 … 80-84, 85+) to
+    MAX_AGE single-year values.
+
+    Closed groups (0–84): PCHIP interpolation on the cumulative distribution.
+    Open group  (85+)   : life-table Lx column used as proportional weights.
+
+    counts_5yr : array-like, length 18
+    lx         : Lx column of the relevant life table (length >= MAX_AGE)
+    """
+    counts_5yr = np.asarray(counts_5yr, dtype=float)
+    closed     = counts_5yr[:17]          # groups 0-4 … 80-84
+    open_total = counts_5yr[17]           # 85+
+
+    # PCHIP on cumulative counts at 5-year boundaries 0, 5, …, 85
+    boundaries = np.arange(0, 90, 5, dtype=float)          # length 18
+    cumul      = np.concatenate([[0.0], np.cumsum(closed)]) # length 18
+    single_cumul = PchipInterpolator(boundaries, cumul)(np.arange(86, dtype=float))
+    single_closed = np.maximum(np.diff(single_cumul), 0)   # length 85, ages 0–84
+
+    # Life-table tail for ages 85 … MAX_AGE-1
+    lx_tail = np.asarray(lx, dtype=float)[85:MAX_AGE]
+    lx_sum  = lx_tail.sum()
+    single_open = (open_total * lx_tail / lx_sum) if lx_sum > 0 else np.zeros(MAX_AGE - 85)
+
+    return np.concatenate([single_closed, single_open])   # length MAX_AGE
+
+
+def load_immig_stock(lt_female, lt_male):
+    """
+    Load the initial immigrant stock (1st + 2nd generation, January 2025)
+    and disaggregate from 5-year groups to single years.
+
+    Returns (female_vector, male_vector), each of length MAX_AGE.
+    """
+    df = pd.read_csv(io.StringIO(requests.get(URL_IMMIG_STOCK).content.decode()))
+    female = _disaggregate_5yr(df['female'].values, lt_female['Lx'].values)
+    male   = _disaggregate_5yr(df['male'].values,   lt_male['Lx'].values)
+    return female, male
+
+
+def load_immig_inflow_dist(lt_female, lt_male):
+    """
+    Load the normalised inflow age distribution (2019-2021 average, foreign-born
+    arrivals excluding Estonian returnees) and disaggregate to single years.
+
+    Returns (female_dist, male_dist), each summing to 1.0, length MAX_AGE.
+    """
+    df = pd.read_csv(io.StringIO(requests.get(URL_IMMIG_INFLOW).content.decode()))
+    female = _disaggregate_5yr(df['female_share'].values, lt_female['Lx'].values)
+    male   = _disaggregate_5yr(df['male_share'].values,   lt_male['Lx'].values)
+    return female / female.sum(), male / male.sum()
+
+
+def load_emig_rates():
+    """
+    Load annual emigration rates by 5-year age group and sex (2019-2021 average).
+    Expand to single-year vectors using a step function (each age takes its
+    5-year group's rate; the open 85+ group extends to MAX_AGE).
+
+    Returns (native_female_rate, native_male_rate, immig_female_rate, immig_male_rate),
+    each of length MAX_AGE.
+    """
+    df = pd.read_csv(io.StringIO(requests.get(URL_EMIG_RATES).content.decode()))
+
+    def expand(rates_5yr):
+        closed = np.repeat(rates_5yr[:17], 5)          # ages 0–84
+        open_  = np.full(MAX_AGE - 85, rates_5yr[17])  # ages 85–109
+        return np.concatenate([closed, open_])
+
+    return (
+        expand(df['native_female_rate'].values),
+        expand(df['native_male_rate'].values),
+        expand(df['immig_female_rate'].values),
+        expand(df['immig_male_rate'].values),
+    )
 
 
 def compute_indicators(out_female, out_male):

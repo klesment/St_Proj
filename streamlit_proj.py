@@ -48,13 +48,16 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period,
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
         return d, np.array(n0_female), np.array(n0_male)
 
-    d         = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period)
+    d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period)
+    F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
+
     base      = build_leslie_base(_lt_female)
-    F         = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
-    LL        = np.array([leslie(f, base) for f in F])
+    LL        = [leslie(f, base) for f in F]
     subd_male = build_male_survival(_lt_male)
     l0_ratio  = _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0]
-    out_female, out_male = project_both_sexes(LL, subd_male, l0_ratio, n0_female, n0_male, period)
+
+    out_female, out_male = project_both_sexes(
+        np.array(LL), subd_male, l0_ratio, n0_female, n0_male, period)
     return d, out_female, out_male
 
 
