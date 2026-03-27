@@ -11,7 +11,7 @@ URL_LT        = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Fema
 URL_LT_MALE   = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Male_2024.txt'
 URL_POP     = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population_2025.txt'
 URL_TFRMAB  = 'https://raw.githubusercontent.com/klesment/PopProj/main/EST_TFRMAB_2023.txt'
-URL_IMMIG_STOCK  = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_stock_2025.csv'
+URL_MT_STOCK     = 'https://raw.githubusercontent.com/klesment/PopProj/main/mt_stock_2021.csv'
 URL_IMMIG_INFLOW = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_inflow_dist.csv'
 URL_EMIG_RATES   = 'https://raw.githubusercontent.com/klesment/PopProj/main/emig_rates.csv'
 
@@ -255,17 +255,20 @@ def _disaggregate_5yr(counts_5yr, lx):
     return np.concatenate([single_closed, single_open])   # length MAX_AGE
 
 
-def load_immig_stock(lt_female, lt_male):
+def load_mt_stock(lt_female, lt_male):
     """
-    Load the initial immigrant stock (1st + 2nd generation, January 2025)
-    and disaggregate from 5-year groups to single years.
+    Load the 2021 census population by mother tongue and disaggregate from
+    5-year groups to single years.
 
-    Returns (female_vector, male_vector), each of length MAX_AGE.
+    Returns (estonian_female, estonian_male, other_female, other_male),
+    each of length MAX_AGE.
     """
-    df = pd.read_csv(io.StringIO(requests.get(URL_IMMIG_STOCK).content.decode()))
-    female = _disaggregate_5yr(df['female'].values, lt_female['Lx'].values)
-    male   = _disaggregate_5yr(df['male'].values,   lt_male['Lx'].values)
-    return female, male
+    df = pd.read_csv(io.StringIO(requests.get(URL_MT_STOCK).content.decode()))
+    est_f = _disaggregate_5yr(df['estonian_female'].values, lt_female['Lx'].values)
+    est_m = _disaggregate_5yr(df['estonian_male'].values,   lt_male['Lx'].values)
+    oth_f = _disaggregate_5yr(df['other_female'].values,    lt_female['Lx'].values)
+    oth_m = _disaggregate_5yr(df['other_male'].values,      lt_male['Lx'].values)
+    return est_f, est_m, oth_f, oth_m
 
 
 def load_immig_inflow_dist(lt_female, lt_male):
@@ -298,10 +301,10 @@ def load_emig_rates():
         return np.concatenate([closed, open_])
 
     return (
-        expand(df['native_female_rate'].values),
-        expand(df['native_male_rate'].values),
-        expand(df['immig_female_rate'].values),
-        expand(df['immig_male_rate'].values),
+        expand(df['estonian_female_rate'].values),
+        expand(df['estonian_male_rate'].values),
+        expand(df['other_female_rate'].values),
+        expand(df['other_male_rate'].values),
     )
 
 

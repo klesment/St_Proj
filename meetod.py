@@ -20,8 +20,7 @@ sündimuse muutust puudutavate eeldustega manipuleerida. Näiteks anda prognoosi
 - sündimustaseme muutumise kiirus, st kas muutus toimub kiiresti või aeglaselt
 - ema keskmise sünnivanuse muutus, nt et see jätkab tõusu
 
-Lihtsuse huvides on muud rahvastiku koostist mõjutavad komponendid prognoosist välja jäetud:
-suremus on fikseeritud alusaasta tasemel ning sisse- ja väljarännet ei ole arvesse võetud.
+Suremus on fikseeritud alusaasta tasemel. Sisse- ja väljaränne on mudelis arvesse võetud (vt allpool).
 ''')
 
 st.markdown('''
@@ -147,4 +146,28 @@ Prognoosimisel võetakse aluseks 2023. aasta seis. Selle aasta kohta on mudelis 
 - keskmine ema vanus sünnihetkel ja selle standardhälve
 
 Andmeallikad on toodud lehel *Andmeallikad*.
+''')
+
+st.markdown('''
+### Rändekomponent
+
+Mudel eristab kaht rahvastikurühma **emakeele** alusel: eesti emakeelega ja muu emakeelega rahvastik.
+
+**Algjaotus.** Rühmade algsuurus tuleneb 2021. aasta rahvaloendusest (tabel RL21434). Loenduse
+emakeele proportsioonid kantakse üle 2023. aasta rahvastikuandmetele, nii et mõlema rühma suurus
+on kooskõlas 2023. aasta kogurahvastikuga.
+
+**Laste emakeel** järgib ema emakeelt: eesti emakeelega emade lapsed lisatakse eesti emakeelega
+rühma ja muu emakeelega emade lapsed muu emakeelega rühma.
+
+**Väljaränne** on modelleeritud vanuse- ja soospeciifiliste rändemääradena, mis on arvutatud
+aastate 2017–2019 keskmisena. Eesti emakeelega rahvastiku rändemäärad tulenevad tabelitest RVR03
+(koguränne) ja RVR10 (eestlaste ränne); muu emakeelega rahvastiku rändemäärad on nende vahe.
+Nimetajana kasutatakse 2021. aasta rahvaloenduse andmeid. Väljarändemäärad skaleeruvad
+automaatselt rahvastiku suurusega — mida suurem rahvastik, seda rohkem lahkujaid.
+
+**Sisseränne** on kasutaja poolt määratav aastane kogusuurusjärk. Sisserändajad lisatakse muu
+emakeelega rühma. Sisserändajate vanusejaotus tuleneb 2019–2021 keskmisest välismaalt saabunute
+vanusjaotusest (tabel RVR09, v.a eestlaste tagasiränne). Sisserände soosuhe on fikseeritud
+vaadeldud perioodi keskmise põhjal (39% naised, 61% mehed).
 ''')

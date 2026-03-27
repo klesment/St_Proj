@@ -11,6 +11,7 @@ from projection import (
     KNOWN_TFR,
     load_data, load_tfr_history, compute_tfr_start, build_scenario_df,
     asfr_gamma, build_leslie_base, leslie, build_male_survival,
+    load_mt_stock, load_immig_inflow_dist, load_emig_rates, build_immig_vectors,
     project_both_sexes, compute_indicators,
 )
 
@@ -42,11 +43,24 @@ def load_and_clean():
 
 
 @st.cache_data
-def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period,
-                   _lt_female, _lt_male, n0_female, n0_male):
+def load_immig_data(_lt_female, _lt_male):
+    est_f, est_m, oth_f, oth_m     = load_mt_stock(_lt_female, _lt_male)
+    inflow_dist_f, inflow_dist_m   = load_immig_inflow_dist(_lt_female, _lt_male)
+    emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m = load_emig_rates()
+    return (est_f, est_m, oth_f, oth_m,
+            inflow_dist_f, inflow_dist_m,
+            emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m)
+
+
+@st.cache_data
+def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, annual_immig,
+                   _lt_female, _lt_male,
+                   n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
+                   inflow_dist_f, inflow_dist_m,
+                   emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m):
     if period == 0:
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
-        return d, np.array(n0_female), np.array(n0_male)
+        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m)
 
     d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period)
     F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
@@ -56,9 +70,21 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period,
     subd_male = build_male_survival(_lt_male)
     l0_ratio  = _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0]
 
-    out_female, out_male = project_both_sexes(
-        np.array(LL), subd_male, l0_ratio, n0_female, n0_male, period)
-    return d, out_female, out_male
+    imm_f, imm_m = build_immig_vectors(
+        annual_immig,
+        np.array(inflow_dist_f), np.array(inflow_dist_m),
+        period,
+    )
+
+    nat_f, nat_m, out_imm_f, out_imm_m = project_both_sexes(
+        np.array(LL), subd_male, l0_ratio,
+        n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
+        imm_f, imm_m,
+        np.array(emig_nat_f), np.array(emig_nat_m),
+        np.array(emig_imm_f), np.array(emig_imm_m),
+        period,
+    )
+    return d, nat_f, nat_m, out_imm_f, out_imm_m
 
 
 # --- Data ---
@@ -79,20 +105,47 @@ N0           = pop_base.Female[0:MAX_AGE].tolist()
 N0_male      = pop_base.Male[0:MAX_AGE].tolist()
 tfr_start    = compute_tfr_start(asfr, BASE_YEAR)
 
+try:
+    with st.spinner('Laadin rändeandmeid...'):
+        (census_est_f, census_est_m, census_oth_f, census_oth_m,
+         inflow_dist_f, inflow_dist_m,
+         emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m) = load_immig_data(
+            _lt_female=lt_base, _lt_male=lt_male_base
+        )
+except Exception:
+    st.error(
+        'Rändeandmete laadimine ebaõnnestus. '
+        'Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.'
+    )
+    st.stop()
+
+# Split 2023 population using 2021 census mother-tongue proportions
+census_total_f = census_est_f + census_oth_f
+census_total_m = census_est_m + census_oth_m
+oth_share_f = np.where(census_total_f > 0, census_oth_f / census_total_f, 0.0)
+oth_share_m = np.where(census_total_m > 0, census_oth_m / census_total_m, 0.0)
+N0_imm_f = np.array(N0)      * oth_share_f
+N0_imm_m = np.array(N0_male) * oth_share_m
+N0_nat_f = np.array(N0)      - N0_imm_f
+N0_nat_m = np.array(N0_male) - N0_imm_m
+
 # --- Sidebar ---
 st.sidebar.markdown(f'Prognoosi alusandmed on {BASE_YEAR}')
 st.sidebar.markdown('''Allpool vali prognoosi eeldused:
 
-1. sündimustaseme muutus (%) perioodi lõpuks 2023. a suhtes ja muutuse kiirus \
+1. prognoosi pikkus aastates
+2. sündimustaseme muutus (%) perioodi lõpuks 2023. a suhtes ja muutuse kiirus \
 (kuvatakse ülemisel väiksel joonisel).
-2. keskmine sünnitusvanus perioodi lõpus
-3. prognoosi pikkus aastates
+3. keskmine sünnitusvanus perioodi lõpus
+4. aastane sisseränne
 ''')
 st.sidebar.divider()
 
 option_map = {5: "Aeglasem", 6: "Keskmine", 8: "Kiirem"}
 
 def user_input_features():
+    Years = st.sidebar.slider(
+        "Prognoosi pikkus (aastat)", min_value=0, max_value=100, step=5, value=0)
     TFR_Change = st.sidebar.number_input(
         "Sündimuse muutus protsentides 2023.a suhtes",
         min_value=-50, max_value=70, step=10, value=0) / 100
@@ -101,21 +154,29 @@ def user_input_features():
         options=option_map.keys(),
         format_func=lambda option: option_map[option],
         selection_mode='single', default=6)
-    MAB_end = st.sidebar.number_input(
-        "Keskmine sünnitusvanus", min_value=27.0, max_value=33.0, step=0.5, value=MAB_BASE)
-    Years = st.sidebar.slider(
-        "Prognoosi pikkus (aastat)", min_value=0, max_value=100, step=5, value=0)
-    return TFR_Change, Ramp, MAB_end, Years
+    MAB_end = st.sidebar.slider(
+        "Keskmine sünnitusvanus", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
+        step=0.5, value=MAB_BASE)
+    Annual_immig = st.sidebar.slider(
+        "Aastane sisseränne (inimest)", min_value=0, max_value=20_000, step=500, value=0)
+    return TFR_Change, Ramp, MAB_end, Years, Annual_immig
 
 
-TFR_Change, Ramp, mab_stop, period = user_input_features()
+TFR_Change, Ramp, mab_stop, period, annual_immig = user_input_features()
 
 # --- Projection ---
-d, out, out_male = run_projection(
-    tfr_start, TFR_Change, Ramp, mab_stop, period,
+d, nat_f, nat_m, imm_f, imm_m = run_projection(
+    tfr_start, TFR_Change, Ramp, mab_stop, period, annual_immig,
     _lt_female=lt_base, _lt_male=lt_male_base,
-    n0_female=N0, n0_male=N0_male,
+    n0_nat_f=N0_nat_f.tolist(), n0_nat_m=N0_nat_m.tolist(),
+    n0_imm_f=N0_imm_f.tolist(), n0_imm_m=N0_imm_m.tolist(),
+    inflow_dist_f=inflow_dist_f.tolist(), inflow_dist_m=inflow_dist_m.tolist(),
+    emig_nat_f=emig_nat_f.tolist(), emig_nat_m=emig_nat_m.tolist(),
+    emig_imm_f=emig_imm_f.tolist(), emig_imm_m=emig_imm_m.tolist(),
 )
+
+out      = nat_f + imm_f
+out_male = nat_m + imm_m
 
 tfr_last     = round(d['tfr'].iloc[-1], 2)
 p_size_start = sum(pop['Total'][pop['Year'] == BASE_YEAR])
@@ -163,52 +224,30 @@ with col2:
     col_d.metric(f"Sündide arv {BASE_YEAR + period}",
                  total_births, "", border=False)
 
-# --- Structural indicators ---
+# --- Population pyramid ---
 ind_end   = compute_indicators(out, out_male)
 ind_start = compute_indicators(N0, N0_male)
 
 st.divider()
-i1, i2, i3, i4 = st.columns(4)
-i1.metric(
-    f"Vanussõltuvusmäär {BASE_YEAR + period}",
-    f"{ind_end['oadr']:.1f}%",
-    f"{ind_end['oadr'] - ind_start['oadr']:.1f}pp",
-    border=False,
-)
-i2.metric(
-    f"Tööealised (18–64)  {BASE_YEAR + period}",
-    f"{round(ind_end['working_age']):,}",
-    round(ind_end['working_age'] - ind_start['working_age']),
-    border=False,
-)
-i3.metric(
-    f"Kooliealised (7–17)  {BASE_YEAR + period}",
-    f"{round(ind_end['school_age']):,}",
-    round(ind_end['school_age'] - ind_start['school_age']),
-    border=False,
-)
-i4.metric(
-    f"65+  {BASE_YEAR + period}",
-    f"{round(ind_end['old_age']):,}",
-    round(ind_end['old_age'] - ind_start['old_age']),
-    border=False,
-)
-
-# --- Population pyramid ---
-st.divider()
 
 ages = np.arange(MAX_AGE)
-data_mask = ages >= period   # born before projection — from data (survived)
-proj_mask = ages <  period   # born during projection — from model
 
 sns.set_style("whitegrid")
 sns.set_context("notebook", font_scale=1)
 fig2, ax2 = plt.subplots(figsize=(10, 8))
 
-ax2.barh(ages[data_mask],  out[data_mask],           color='#e05252', label='Naised (andmed)')
-ax2.barh(ages[proj_mask],  out[proj_mask],            color='#f5b7b1', label='Naised (prognoos)')
-ax2.barh(ages[data_mask], -out_male[data_mask],       color='#2e86c1', label='Mehed (andmed)')
-ax2.barh(ages[proj_mask], -out_male[proj_mask],       color='#a9cce3', label='Mehed (prognoos)')
+# Native population
+ax2.barh(ages,  nat_f, color='#e05252', label='Naised, eesti emakeel')
+ax2.barh(ages, -nat_m, color='#2e86c1', label='Mehed, eesti emakeel')
+
+# Immigrant population stacked on native
+ax2.barh(ages,  imm_f, left= nat_f, color='#e8923a', label='Naised, muu emakeel')
+ax2.barh(ages, -imm_m, left=-nat_m, color='#3aae82', label='Mehed, muu emakeel')
+
+# Dividing line between data cohorts (age >= period) and projected cohorts (age < period)
+if period > 0:
+    ax2.axhline(period - 0.5, color='black', linewidth=1.2, linestyle='--',
+                label=f'Prognoosipiir (sündinud {BASE_YEAR + 1}–{BASE_YEAR + period})')
 
 ax2.set_xlabel('Inimesi vanusrühmas')
 ax2.set_ylabel('Vanus')
@@ -217,6 +256,50 @@ ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{abs(int(x)):,}')
 ax2.axvline(0, color='black', linewidth=0.8)
 ax2.legend(loc='upper left')
 
-st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal  |  Tumedam = andmepõhised kohordid, heledam = prognoositud kohordid")
+st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
 st.pyplot(fig2)
 plt.close(fig2)
+
+# --- Structural indicators ---
+immig_share_end   = (imm_f.sum() + imm_m.sum()) / p_size_end * 100
+immig_share_start = (N0_imm_f.sum() + N0_imm_m.sum()) / p_size_start * 100
+
+work_pct_end   = ind_end['working_age']  / p_size_end   * 100
+work_pct_start = ind_start['working_age'] / p_size_start * 100
+school_pct_end   = ind_end['school_age']  / p_size_end   * 100
+school_pct_start = ind_start['school_age'] / p_size_start * 100
+old_pct_end   = ind_end['old_age']  / p_size_end   * 100
+old_pct_start = ind_start['old_age'] / p_size_start * 100
+
+st.divider()
+i1, i2, i3, i4, i5 = st.columns(5)
+i1.metric(
+    f"Vanussõltuvusmäär {BASE_YEAR + period}",
+    f"{ind_end['oadr']:.1f}%",
+    f"{ind_end['oadr'] - ind_start['oadr']:.1f}pp",
+    border=False,
+)
+i2.metric(
+    f"Tööealised (18–64)  {BASE_YEAR + period}",
+    f"{work_pct_end:.1f}%",
+    f"{work_pct_end - work_pct_start:.1f}pp",
+    border=False,
+)
+i3.metric(
+    f"Kooliealised (7–17)  {BASE_YEAR + period}",
+    f"{school_pct_end:.1f}%",
+    f"{school_pct_end - school_pct_start:.1f}pp",
+    border=False,
+)
+i4.metric(
+    f"65+  {BASE_YEAR + period}",
+    f"{old_pct_end:.1f}%",
+    f"{old_pct_end - old_pct_start:.1f}pp",
+    border=False,
+)
+i5.metric(
+    f"Muu emakeel {BASE_YEAR + period}",
+    f"{immig_share_end:.1f}%",
+    f"{immig_share_end - immig_share_start:.1f}pp",
+    border=False,
+)
