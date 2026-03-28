@@ -11,8 +11,8 @@ from projection import (
     KNOWN_TFR,
     load_data, load_tfr_history, compute_tfr_start, build_scenario_df,
     asfr_gamma, build_leslie_base, leslie, build_male_survival,
-    load_mt_stock, load_immig_inflow_dist, load_emig_rates, build_immig_vectors,
-    project_both_sexes, compute_indicators,
+    load_mt_stock, load_immig_inflow_dist, load_emig_rates, load_immig_baseline,
+    build_immig_vectors, project_both_sexes, compute_indicators,
 )
 
 FIGURE_SIZE   = (8, 4.5)
@@ -47,17 +47,20 @@ def load_immig_data(_lt_female, _lt_male):
     est_f, est_m, oth_f, oth_m     = load_mt_stock(_lt_female, _lt_male)
     inflow_dist_f, inflow_dist_m   = load_immig_inflow_dist(_lt_female, _lt_male)
     emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m = load_emig_rates()
+    base_nat_f, base_nat_m, base_imm_f, base_imm_m = load_immig_baseline(_lt_female, _lt_male)
     return (est_f, est_m, oth_f, oth_m,
             inflow_dist_f, inflow_dist_m,
-            emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m)
+            emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
+            base_nat_f, base_nat_m, base_imm_f, base_imm_m)
 
 
 @st.cache_data
-def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, annual_immig,
+def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_immig,
                    _lt_female, _lt_male,
                    n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
                    inflow_dist_f, inflow_dist_m,
-                   emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m):
+                   emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
+                   base_nat_f, base_nat_m, base_imm_f, base_imm_m):
     if period == 0:
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
         return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m)
@@ -65,21 +68,29 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, annual_i
     d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period)
     F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
 
-    base      = build_leslie_base(_lt_female)
-    LL        = [leslie(f, base) for f in F]
-    subd_male = build_male_survival(_lt_male)
-    l0_ratio  = _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0]
+    base_leslie = build_leslie_base(_lt_female)
+    LL          = [leslie(f, base_leslie) for f in F]
+    subd_male   = build_male_survival(_lt_male)
+    l0_ratio    = _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0]
 
-    imm_f, imm_m = build_immig_vectors(
-        annual_immig,
+    # Scenario inflow: user-controlled additional non-Estonian immigrants
+    scen_imm_f, scen_imm_m = build_immig_vectors(
+        extra_immig,
         np.array(inflow_dist_f), np.array(inflow_dist_m),
         period,
     )
 
+    # Total inflow: baseline (always on) + scenario (user-controlled, immigrant stock only)
+    nat_inflow_f = np.tile(np.array(base_nat_f), (period, 1))
+    nat_inflow_m = np.tile(np.array(base_nat_m), (period, 1))
+    imm_inflow_f = np.tile(np.array(base_imm_f), (period, 1)) + scen_imm_f
+    imm_inflow_m = np.tile(np.array(base_imm_m), (period, 1)) + scen_imm_m
+
     nat_f, nat_m, out_imm_f, out_imm_m = project_both_sexes(
         np.array(LL), subd_male, l0_ratio,
         n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
-        imm_f, imm_m,
+        nat_inflow_f, nat_inflow_m,
+        imm_inflow_f, imm_inflow_m,
         np.array(emig_nat_f), np.array(emig_nat_m),
         np.array(emig_imm_f), np.array(emig_imm_m),
         period,
@@ -109,7 +120,8 @@ try:
     with st.spinner('Laadin rändeandmeid...'):
         (census_est_f, census_est_m, census_oth_f, census_oth_m,
          inflow_dist_f, inflow_dist_m,
-         emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m) = load_immig_data(
+         emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
+         base_nat_f, base_nat_m, base_imm_f, base_imm_m) = load_immig_data(
             _lt_female=lt_base, _lt_male=lt_male_base
         )
 except Exception:
@@ -134,21 +146,22 @@ st.sidebar.markdown(f'Prognoosi alusandmed on {BASE_YEAR}')
 st.sidebar.markdown('''Allpool vali prognoosi eeldused:
 
 1. prognoosi pikkus aastates
-2. sündimustaseme muutus (%) perioodi lõpuks 2023. a suhtes ja muutuse kiirus \
+2. sündimustase perioodi lõpus (TFR) ja muutuse kiirus \
 (kuvatakse ülemisel väiksel joonisel).
 3. keskmine sünnitusvanus perioodi lõpus
 4. aastane sisseränne
 ''')
 st.sidebar.divider()
 
-option_map = {5: "Aeglasem", 6: "Keskmine", 8: "Kiirem"}
+option_map = {5: "▁", 6: "▄", 8: "█"}
 
-def user_input_features():
+def user_input_features(tfr_start):
     Years = st.sidebar.slider(
         "Prognoosi pikkus (aastat)", min_value=0, max_value=100, step=5, value=0)
-    TFR_Change = st.sidebar.number_input(
-        "Sündimuse muutus protsentides 2023.a suhtes",
-        min_value=-50, max_value=70, step=10, value=0) / 100
+    tfr_end = st.sidebar.slider(
+        f"Sündimus perioodi lõpus (TFR, {BASE_YEAR} = {tfr_start:.2f})",
+        min_value=0.5, max_value=3.0, step=0.05, value=float(round(tfr_start * 20) / 20))
+    TFR_Change = tfr_end / tfr_start - 1
     Ramp = st.sidebar.segmented_control(
         "Muutuse kiirus",
         options=option_map.keys(),
@@ -158,21 +171,23 @@ def user_input_features():
         "Keskmine sünnitusvanus", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
         step=0.5, value=MAB_BASE)
     Annual_immig = st.sidebar.slider(
-        "Aastane sisseränne (inimest)", min_value=0, max_value=20_000, step=500, value=0)
+        "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
     return TFR_Change, Ramp, MAB_end, Years, Annual_immig
 
 
-TFR_Change, Ramp, mab_stop, period, annual_immig = user_input_features()
+TFR_Change, Ramp, mab_stop, period, extra_immig = user_input_features(tfr_start)
 
 # --- Projection ---
 d, nat_f, nat_m, imm_f, imm_m = run_projection(
-    tfr_start, TFR_Change, Ramp, mab_stop, period, annual_immig,
+    tfr_start, TFR_Change, Ramp, mab_stop, period, extra_immig,
     _lt_female=lt_base, _lt_male=lt_male_base,
     n0_nat_f=N0_nat_f.tolist(), n0_nat_m=N0_nat_m.tolist(),
     n0_imm_f=N0_imm_f.tolist(), n0_imm_m=N0_imm_m.tolist(),
     inflow_dist_f=inflow_dist_f.tolist(), inflow_dist_m=inflow_dist_m.tolist(),
     emig_nat_f=emig_nat_f.tolist(), emig_nat_m=emig_nat_m.tolist(),
     emig_imm_f=emig_imm_f.tolist(), emig_imm_m=emig_imm_m.tolist(),
+    base_nat_f=base_nat_f.tolist(), base_nat_m=base_nat_m.tolist(),
+    base_imm_f=base_imm_f.tolist(), base_imm_m=base_imm_m.tolist(),
 )
 
 out      = nat_f + imm_f

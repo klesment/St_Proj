@@ -12,6 +12,10 @@ Outputs:
                            averaged over 2019-2021 (RVR08 + RV071 denominator):
                            native stock: Estonian-citizen emigrants / native pop
                            immigrant stock: non-Estonian emigrants / immig pop
+  immig_baseline.csv    -- baseline annual inflow counts by 5-year age group and sex,
+                           averaged over 2019-2021 (RVR03 total − RVR10 Estonian):
+                           estonian: Estonian-citizen immigrants (returnees)
+                           other: non-Estonian-citizen immigrants
 
 Run once, commit all CSVs to the data repo.
 """
@@ -191,5 +195,32 @@ print(f'  Peak Estonian emig rate (male): age {AGE_LABELS[est_emig_avg[0].argmax
       f'= {safe_rate(est_emig_avg[0], est_pop[0]).max():.4f}')
 print(f'  Peak other-MT emig rate (male): age {AGE_LABELS[oth_emig_avg[0].argmax()]}  '
       f'= {safe_rate(oth_emig_avg[0], oth_pop[0]).max():.4f}')
+
+
+# ---------------------------------------------------------------------------
+# 4. Baseline inflow counts -- RVR03 (total) + RVR10 (Estonians)
+#    Same source arrays as Section 3; immigration indicator index 0.
+#    Non-Estonian inflow = total − Estonian (same subtraction as emigration).
+#    Absolute counts (not rates), averaged over 2019-2021.
+# ---------------------------------------------------------------------------
+print('Deriving baseline inflow counts from RVR03 / RVR10...')
+
+# immigration indicator index 0; shape: 2(sex) x 18(age)
+total_immig_avg = total_arr[:, :, :, 0].mean(axis=0)
+est_immig_avg   = est_arr[:, :, :, 0].mean(axis=0)
+oth_immig_avg   = total_immig_avg - est_immig_avg
+
+baseline_df = pd.DataFrame({
+    'age_group':        AGE_LABELS,
+    'estonian_male':    est_immig_avg[0].round(1),
+    'estonian_female':  est_immig_avg[1].round(1),
+    'other_male':       oth_immig_avg[0].round(1),
+    'other_female':     oth_immig_avg[1].round(1),
+})
+baseline_df.to_csv('immig_baseline.csv', index=False)
+
+print(f'  Saved immig_baseline.csv')
+print(f'  Avg annual Estonian immigrants:     male={int(est_immig_avg[0].sum()):,}  female={int(est_immig_avg[1].sum()):,}')
+print(f'  Avg annual non-Estonian immigrants: male={int(oth_immig_avg[0].sum()):,}  female={int(oth_immig_avg[1].sum()):,}')
 
 print('\nDone. Commit all CSV files to the data repo.')

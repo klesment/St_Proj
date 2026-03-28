@@ -1,4 +1,22 @@
+import io
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import requests
 import streamlit as st
+
+from projection import URL_MT_STOCK, URL_EMIG_RATES, URL_IMMIG_BASELINE
+
+
+@st.cache_data
+def _load_migration_rate_data():
+    def fetch(url):
+        return pd.read_csv(io.StringIO(requests.get(url).content.decode()))
+
+    emig     = fetch(URL_EMIG_RATES)
+    baseline = fetch(URL_IMMIG_BASELINE)
+    pop      = fetch(URL_MT_STOCK)
+    return emig, baseline, pop
 
 st.header('Sündimuse mõju tuleviku rahvastiku suurusele ja vanuskoostisele')
 
@@ -171,3 +189,45 @@ emakeelega rühma. Sisserändajate vanusejaotus tuleneb 2019–2021 keskmisest v
 vanusjaotusest (tabel RVR09, v.a eestlaste tagasiränne). Sisserände soosuhe on fikseeritud
 vaadeldud perioodi keskmise põhjal (39% naised, 61% mehed).
 ''')
+
+try:
+    emig, baseline, pop = _load_migration_rate_data()
+
+    age_labels = emig['age_group'].tolist()
+    ages = np.arange(len(emig))
+
+    # Convert baseline inflow counts to rates using 2021 census population
+    inflow_rates = {}
+    for group, sex in [('estonian', 'male'), ('estonian', 'female'),
+                       ('other',    'male'), ('other',    'female')]:
+        denom = pop[f'{group}_{sex}'].replace(0, np.nan)
+        inflow_rates[f'{group}_{sex}'] = baseline[f'{group}_{sex}'] / denom
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 7), sharey=False)
+    fig.suptitle('Aastased rändemäärad vanuse järgi  (2019–2021 keskmine)', fontsize=12)
+
+    panels = [
+        ('estonian', 'male',   'Eesti emakeel — mehed',   axes[0, 0]),
+        ('estonian', 'female', 'Eesti emakeel — naised',  axes[0, 1]),
+        ('other',    'male',   'Muu emakeel — mehed',     axes[1, 0]),
+        ('other',    'female', 'Muu emakeel — naised',    axes[1, 1]),
+    ]
+
+    for group, sex, title, ax in panels:
+        col = f'{group}_{sex}'
+        ax.plot(ages, emig[f'{col}_rate'].values * 100,
+                color='#c0392b', marker='o', markersize=3, label='Väljaränne')
+        ax.plot(ages, inflow_rates[col].values * 100,
+                color='#2980b9', marker='s', markersize=3, label='Sisseränne')
+        ax.set_title(title, fontsize=10)
+        ax.set_xticks(ages)
+        ax.set_xticklabels(age_labels, rotation=45, ha='right', fontsize=7)
+        ax.set_ylabel('Määr (%)')
+        ax.legend(fontsize=8)
+        ax.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+except Exception:
+    pass

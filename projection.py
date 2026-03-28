@@ -11,9 +11,10 @@ URL_LT        = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Fema
 URL_LT_MALE   = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Male_2024.txt'
 URL_POP     = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population_2025.txt'
 URL_TFRMAB  = 'https://raw.githubusercontent.com/klesment/PopProj/main/EST_TFRMAB_2023.txt'
-URL_MT_STOCK     = 'https://raw.githubusercontent.com/klesment/PopProj/main/mt_stock_2021.csv'
-URL_IMMIG_INFLOW = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_inflow_dist.csv'
-URL_EMIG_RATES   = 'https://raw.githubusercontent.com/klesment/PopProj/main/emig_rates.csv'
+URL_MT_STOCK       = 'https://raw.githubusercontent.com/klesment/PopProj/main/mt_stock_2021.csv'
+URL_IMMIG_INFLOW   = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_inflow_dist.csv'
+URL_EMIG_RATES     = 'https://raw.githubusercontent.com/klesment/PopProj/main/emig_rates.csv'
+URL_IMMIG_BASELINE = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_baseline.csv'
 
 # Demographic constants
 BASE_YEAR           = 2023
@@ -163,7 +164,8 @@ def build_immig_vectors(annual_total, dist_female, dist_male, per):
 def project_both_sexes(lmat_female, subd_male, l0_ratio,
                        pop_native_f, pop_native_m,
                        pop_immig_f,  pop_immig_m,
-                       imm_f, imm_m,
+                       nat_inflow_f, nat_inflow_m,
+                       imm_inflow_f, imm_inflow_m,
                        emig_nat_f, emig_nat_m,
                        emig_imm_f, emig_imm_m,
                        per):
@@ -177,8 +179,10 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
     pop_native_m - initial native male vector
     pop_immig_f  - initial immigrant female vector
     pop_immig_m  - initial immigrant male vector
-    imm_f        - annual female immigration vectors (per, MAX_AGE)
-    imm_m        - annual male   immigration vectors (per, MAX_AGE)
+    nat_inflow_f - annual inflow vectors, native female  (per, MAX_AGE)
+    nat_inflow_m - annual inflow vectors, native male    (per, MAX_AGE)
+    imm_inflow_f - annual inflow vectors, immigrant female (per, MAX_AGE)
+    imm_inflow_m - annual inflow vectors, immigrant male   (per, MAX_AGE)
     emig_nat_f   - annual emigration rates, native female  (length MAX_AGE)
     emig_nat_m   - annual emigration rates, native male    (length MAX_AGE)
     emig_imm_f   - annual emigration rates, immigrant female (length MAX_AGE)
@@ -216,9 +220,11 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
         N_imm_f_new   = leslie_imm_f * (1 - emig_imm_f)
         N_imm_m_new  *= (1 - emig_imm_m)
 
-        # --- immigration inflow ---
-        N_imm_f_new  += imm_f[i]
-        N_imm_m_new  += imm_m[i]
+        # --- immigration inflow: baseline (both stocks) + scenario (immigrant only) ---
+        N_nat_f_new  += nat_inflow_f[i]
+        N_nat_m_new  += nat_inflow_m[i]
+        N_imm_f_new  += imm_inflow_f[i]
+        N_imm_m_new  += imm_inflow_m[i]
 
         N_nat_f, N_nat_m = N_nat_f_new, N_nat_m_new
         N_imm_f, N_imm_m = N_imm_f_new, N_imm_m_new
@@ -306,6 +312,22 @@ def load_emig_rates():
         expand(df['other_female_rate'].values),
         expand(df['other_male_rate'].values),
     )
+
+
+def load_immig_baseline(lt_female, lt_male):
+    """
+    Load baseline annual inflow counts by 5-year age group (2019-2021 average)
+    and disaggregate to single years using life-table weights for the open group.
+
+    Returns (nat_f, nat_m, imm_f, imm_m): annual inflow vectors for the native
+    (Estonian-citizen) and immigrant (non-Estonian-citizen) stocks, each length MAX_AGE.
+    """
+    df = pd.read_csv(io.StringIO(requests.get(URL_IMMIG_BASELINE).content.decode()))
+    nat_f = _disaggregate_5yr(df['estonian_female'].values, lt_female['Lx'].values)
+    nat_m = _disaggregate_5yr(df['estonian_male'].values,   lt_male['Lx'].values)
+    imm_f = _disaggregate_5yr(df['other_female'].values,    lt_female['Lx'].values)
+    imm_m = _disaggregate_5yr(df['other_male'].values,      lt_male['Lx'].values)
+    return nat_f, nat_m, imm_f, imm_m
 
 
 def compute_indicators(out_female, out_male):
