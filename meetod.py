@@ -185,10 +185,27 @@ aastate 2017–2019 keskmisena. Eesti emakeelega rahvastiku rändemäärad tulen
 Nimetajana kasutatakse 2021. aasta rahvaloenduse andmeid. Väljarändemäärad skaleeruvad
 automaatselt rahvastiku suurusega — mida suurem rahvastik, seda rohkem lahkujaid.
 
-**Sisseränne** on kasutaja poolt määratav aastane kogusuurusjärk. Sisserändajad lisatakse muu
-emakeelega rühma. Sisserändajate vanusejaotus tuleneb 2019–2021 keskmisest välismaalt saabunute
-vanusjaotusest (tabel RVR09, v.a eestlaste tagasiränne). Sisserände soosuhe on fikseeritud
-vaadeldud perioodi keskmise põhjal (39% naised, 61% mehed).
+**Sisseränne** koosneb kahest komponendist:
+
+- **Baassisseränne** (alati sees): 2017–2019 keskmised aastased saabujad rahvuse kaupa (RVR03 ja
+  RVR10 põhjal). Eesti kodanikud (tagasirändajad) lisatakse eesti emakeelega rühma, muu
+  kodakondsusega isikud muu emakeelega rühma.
+- **Lisaränne** (kasutaja valib): täiendav aastane muu emakeelega sisserände maht baastaseme peal.
+  Vanusejaotus tuleneb 2017–2019 välismaalt saabunute keskmisest vanusjaotusest (tabel RVR09,
+  v.a eestlaste tagasiränne). Soosuhe on fikseeritud vaadeldud perioodi keskmise põhjal
+  (39% naised, 61% mehed).
+
+Kuvatavad näitajad:
+
+- *Aastane netoränne* — kogusisseränne (baas + lisaränne) miinus väljarändemäärad, mis on
+  rakendatud prognoosiperioodi lõpu rahvastikule. Peegeldab, kuidas rahvastiku suuruse ja
+  vanuselise koosseisu muutumine mõjutab väljarände absoluutmahtu.
+- *Muu emakeel sisserändest* — muu emakeelega sisserändajate osakaal kogusisserändest
+  (baas + lisaränne). Näitab alati väärtust vahemikus 0–100%.
+- *Vanus 0–17 / 18–64 / 65+* — vastava vanuserühma osakaal kogurahvastikust prognoosiperioodi
+  lõpus. Muutus on näidatud alusaasta suhtes.
+- *Muu emakeel 0–17 / 18–64 / 65+* — muu emakeelega elanike osakaal igas vanuserühmas
+  prognoosiperioodi lõpus. Muutus on näidatud alusaasta suhtes.
 ''')
 
 try:
@@ -205,7 +222,7 @@ try:
         inflow_rates[f'{group}_{sex}'] = baseline[f'{group}_{sex}'] / denom
 
     fig, axes = plt.subplots(2, 2, figsize=(10, 7), sharey=False)
-    fig.suptitle('Aastased rändemäärad vanuse järgi  (2019–2021 keskmine)', fontsize=12)
+    fig.suptitle('Aastased rändemäärad vanuse järgi  (2017–2019 keskmine)', fontsize=12)
 
     panels = [
         ('estonian', 'male',   'Eesti emakeel — mehed',   axes[0, 0]),
