@@ -195,6 +195,51 @@ automaatselt rahvastiku suurusega — mida suurem rahvastik, seda rohkem lahkuja
   v.a eestlaste tagasiränne). Soosuhe on fikseeritud vaadeldud perioodi keskmise põhjal
   (39% naised, 61% mehed).
 
+Iga prognoosiaasta järjekord on järgmine:
+
+```
+AASTA t TSÜKKEL
+────────────────────────────────────────────────────────────────
+
+  AASTA t ALGUS
+  ┌─────────────────┐   ┌─────────────────┐
+  │  N_nat_f / m    │   │  N_imm_f / m    │
+  └────────┬────────┘   └────────┬────────┘
+           │                     │
+           ▼  1. ELLUJÄÄMINE + SÜNDID
+  ┌─────────────────┐   ┌─────────────────┐
+  │ Leslie (naised) │   │ Leslie (naised) │  ← muu emakeelega emade
+  │ subd_male (m)   │   │ subd_male (m)   │    lapsed → muu rühma
+  └────────┬────────┘   └────────┬────────┘
+           │                     │
+           ▼  2. VÄLJARÄNNE  (määrad × ellujäänud rahvastik)
+  ┌─────────────────┐   ┌─────────────────┐
+  │ × (1−emig_nat)  │   │ × (1−emig_imm)  │
+  └────────┬────────┘   └────────┬────────┘
+           │                     │
+           ▼  3. SISSERÄNNE
+  ┌─────────────────┐   ┌────────────────────────────────────┐
+  │ + baas_nat_f/m  │   │ + baas_imm_f/m                     │
+  │  (fikseeritud)  │   │ + lisaränne_f/m  ← kasutaja valib  │
+  └────────┬────────┘   └────────┬───────────────────────────┘
+           │                     │
+           ▼                     ▼
+  AASTA t LÕPP  →  läheb aasta t+1 alguseks
+
+
+NETORÄNNE (kuvatav näitaja)
+────────────────────────────────────────────────────────────────
+
+  sisseränne  = baas_nat + baas_imm + lisaränne
+  väljaränne  = rändemäärad × AASTA LÕPU rahvastik   ← sisaldab
+  netoränne   = sisseränne − väljaränne                  saabujaid
+```
+
+NB: tsüklis rakendatakse väljaränne enne sisserännet (samm 2 enne samm 3),
+kuid kuvatav netoränne arvutab väljarände perioodi lõpu rahvastiku põhjal
+(mis juba sisaldab saabujaid). Seega on kuvatav väljaränne väikeses osas
+ülehinnatud — 1000 lisarändajaga näiteks umbes 3 inimese võrra.
+
 Kuvatavad näitajad:
 
 - *Aastane netoränne* — kogusisseränne (baas + lisaränne) miinus väljarändemäärad, mis on
