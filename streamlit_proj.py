@@ -269,7 +269,7 @@ ax2.axvline(0, color='black', linewidth=0.8)
 ax2.legend(loc='upper left')
 
 st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
-st.pyplot(fig2, use_container_width=True)
+st.pyplot(fig2, width='stretch')
 plt.close(fig2)
 
 # --- Structural indicators ---
