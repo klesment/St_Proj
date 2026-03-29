@@ -15,9 +15,10 @@ streamlit run entry.py
 | `entry.py` | Multi-page navigation |
 | `streamlit_proj.py` | UI, sidebar inputs, charts |
 | `projection.py` | All model logic (no Streamlit) |
-| `meetod.py` | Methodology page (Estonian) |
+| `meetod.py` | Methodology page (Estonian), includes migration rates chart |
 | `allikad.py` | Data sources page |
 | `fetch_immig_data.py` | One-time script: fetch migration data from stat.ee, save CSVs to data repo |
+| `plot_migration_rates.py` | Diagnostic script: plot in/out rates by age (not part of the app) |
 
 ## Key Constants (`projection.py`)
 
@@ -33,13 +34,13 @@ streamlit run entry.py
 | `KNOWN_TFR` | `{2024: 1.18, 2025: 1.18}` | Hardcoded observed TFR values |
 | `HISTORY_START` | 2010 | First year shown on TFR chart |
 | `AGE_WORK_MIN/MAX` | 18 / 65 | Working-age bounds |
-| `AGE_SCHOOL_MIN/MAX` | 7 / 18 | School-age bounds |
+| `AGE_SCHOOL_MIN/MAX` | 0 / 18 | Child age bounds (ages 0–17) |
 | `AGE_OLD_MIN` | 65 | Old-age lower bound |
-| `IMMIG_FEMALE_SHARE` | 0.3942 | Female share of annual inflow (RVR09 2019–2021 avg) |
+| `IMMIG_FEMALE_SHARE` | 0.3942 | Female share of scenario inflow (RVR09 2017–2019 avg) |
 
 ## Data Sources (GitHub: klesment/PopProj)
 
-### Existing
+### Demographic base data
 | Variable | File | Content |
 |---|---|---|
 | `URL_ASFR` | `ESTasfrRR_2023.txt` | Age-specific fertility rates |
@@ -48,12 +49,13 @@ streamlit run entry.py
 | `URL_POP` | `Population_2025.txt` | Population by age and sex |
 | `URL_TFRMAB` | `EST_TFRMAB_2023.txt` | TFR/MAB history |
 
-### Immigration branch (stat.ee sources, saved as static CSVs)
+### Migration data (stat.ee sources, saved as static CSVs)
 | Variable | File | Content | Source |
 |---|---|---|---|
-| `URL_IMMIG_STOCK` | `immig_stock_2025.csv` | Foreign-origin stock (1st+2nd gen) by 5-yr age group and sex, Jan 2025 | RV071 |
-| `URL_IMMIG_INFLOW` | `immig_inflow_dist.csv` | Normalised inflow age distribution (shares), 2019–2021 avg, excl. Estonian returnees | RVR09 |
-| `URL_EMIG_RATES` | `emig_rates.csv` | Annual emigration rates by 5-yr age group and sex, 2019–2021 avg | RVR08 + RV071 |
+| `URL_MT_STOCK` | `mt_stock_2021.csv` | Population by mother tongue (Estonian/Other), sex and 5-yr age group, 2021 census | RL21434 |
+| `URL_IMMIG_INFLOW` | `immig_inflow_dist.csv` | Normalised inflow age distribution (shares), 2017–2019 avg, excl. Estonian returnees | RVR09 |
+| `URL_EMIG_RATES` | `emig_rates.csv` | Annual emigration rates by 5-yr age group and sex, 2017–2019 avg | RVR03 + RVR10 |
+| `URL_IMMIG_BASELINE` | `immig_baseline.csv` | Baseline annual inflow counts by 5-yr age group and sex, 2017–2019 avg | RVR03 + RVR10 |
 
 ## Model Logic
 
@@ -66,76 +68,75 @@ streamlit run entry.py
 ### Male projection
 Derived from female: male births = female newborns × SRB × (L₀_male / L₀_female). Survival via `build_male_survival()`.
 
-### Immigration model (branch: `immigration`)
-Two parallel population stocks — native and immigrant — projected simultaneously with the **same Leslie matrix**. Each year:
+### Immigration model
+Two parallel population stocks — native (Estonian mother tongue) and immigrant (other mother tongue) — projected simultaneously with the **same Leslie matrix**. Each year:
 
 1. **Survival + births** — Leslie matrix applied to both stocks; births from immigrant mothers join immigrant stock
-2. **Emigration** — age-specific rates (from `emig_rates.csv`) applied multiplicatively to post-survival vectors:
+2. **Emigration** — age-specific rates applied multiplicatively to post-survival vectors:
    - Estonian-citizen emigration rates → native stock
    - Non-Estonian-citizen emigration rates → immigrant stock
-3. **Immigration inflow** — annual inflow vector (annual total × normalised age distribution) added to immigrant stock
+3. **Immigration inflow** — two components added each year:
+   - **Baseline** (`immig_baseline.csv`): historical average inflow (2017–2019) by nationality, always on; Estonian nationals (returnees) → native stock, non-Estonians → immigrant stock
+   - **Scenario** (user-controlled slider): additional non-Estonian inflow above baseline → immigrant stock only
 
 #### Key design decisions
 - Same fertility and mortality schedules for native and immigrant (single Leslie matrix)
 - Children of immigrants join immigrant stock
-- 3rd-generation foreign-origin treated as native; 1st+2nd generation as immigrant
-- Emigration implemented as rates (not absolute counts) so it scales with the projected population
-- Initial immigrant stock: RV071 1st+2nd generation, January 2025, disaggregated from 5-yr to single-year ages via PCHIP + life-table tail (85+)
-- Inflow age distribution: RVR09 2019–2021 average, excluding Estonian-born returnees
-- Emigration rates: RVR08 2019–2021 average; Estonian-citizen emigrants / native pop; non-Estonian emigrants / immigrant pop (denominator from RV071)
-- Citizenship used as proxy for native/immigrant on the emigration side (known limitation: ~50k naturalized Estonians misclassified as native emigrants)
+- Grouping variable is mother tongue (immutable, inherited from mother)
+- Emigration implemented as rates (scales with projected population size)
+- Baseline inflow implemented as fixed annual counts (from RVR03 total − RVR10 Estonian); same nationality proxy as emigration side
+- Slider = additional non-Estonian inflow above historical baseline; at 0 the baseline continues
+- Initial population split: 2021 census mother-tongue proportions applied to 2023 total population
+- Citizenship used as proxy for native/immigrant on both inflow and outflow sides (known limitation: ~50k naturalized Estonians misclassified)
 
-#### New functions in `projection.py`
+#### Functions in `projection.py`
 | Function | Purpose |
 |---|---|
 | `_disaggregate_5yr(counts_5yr, lx)` | PCHIP + life-table tail: 5-yr groups → single years |
-| `load_immig_stock(lt_f, lt_m)` | Load and disaggregate initial immigrant stock |
-| `load_immig_inflow_dist(lt_f, lt_m)` | Load and disaggregate normalised inflow distribution |
+| `load_mt_stock(lt_f, lt_m)` | Load and disaggregate initial population by mother tongue |
+| `load_immig_inflow_dist(lt_f, lt_m)` | Load and disaggregate normalised inflow age distribution |
 | `load_emig_rates()` | Load emigration rates, expand to single-year step function |
-| `build_immig_vectors(annual_total, dist_f, dist_m, per)` | Build per-year inflow arrays from scenario total |
+| `load_immig_baseline(lt_f, lt_m)` | Load and disaggregate baseline annual inflow counts |
+| `build_immig_vectors(annual_total, dist_f, dist_m, per)` | Build per-year scenario inflow arrays |
 
-#### `project_both_sexes()` — updated signature
+#### `project_both_sexes()` — signature
 ```python
 project_both_sexes(
     lmat_female, subd_male, l0_ratio,
-    pop_native_f, pop_native_m,     # initial native vectors
-    pop_immig_f,  pop_immig_m,      # initial immigrant vectors
-    imm_f, imm_m,                   # inflow arrays (per × MAX_AGE)
-    emig_nat_f, emig_nat_m,         # emigration rate vectors, native
-    emig_imm_f, emig_imm_m,         # emigration rate vectors, immigrant
+    pop_native_f, pop_native_m,       # initial native vectors
+    pop_immig_f,  pop_immig_m,        # initial immigrant vectors
+    nat_inflow_f, nat_inflow_m,       # baseline inflow arrays, native (per × MAX_AGE)
+    imm_inflow_f, imm_inflow_m,       # total inflow arrays, immigrant (baseline + scenario)
+    emig_nat_f, emig_nat_m,           # emigration rate vectors, native
+    emig_imm_f, emig_imm_m,           # emigration rate vectors, immigrant
     per
 ) → (native_f, native_m, immig_f, immig_m)
 ```
 
 ### Structural indicators (`compute_indicators`)
-- OADR: 65+ / working-age × 100
 - Working-age: ages 18–64
-- School-age: ages 7–17
+- Child age: ages 0–17
 - Old-age: ages 65+
 
 ## Caching
-`@st.cache_data` on `load_and_clean()` and `run_projection()`. The `_lt_female`, `_lt_male` parameters are prefixed with `_` to exclude DataFrames from the cache key.
+`@st.cache_data` on `load_and_clean()`, `load_immig_data()`, and `run_projection()`. The `_lt_female`, `_lt_male` parameters are prefixed with `_` to exclude DataFrames from the cache key.
 
 ## User Inputs (Sidebar)
-- TFR change (%) relative to 2023
-- Ramp speed: Slow / Medium / Fast (Gompertz shape 5/6/8)
+- TFR at end of period (absolute value, slider 0.5–3.0, default = base year TFR)
+- Ramp speed: ▁ / ▄ / █ (Gompertz shape 5/6/8)
 - Mean age at birth (MAB) at end of period
 - Projection length: 0–100 years in 5-year steps
-- *(immigration branch)* Annual immigration total — **not yet wired into Streamlit**
+- Additional non-Estonian inflow above baseline (persons/year, slider 0–20,000)
 
 ## Population Pyramid
-- Darker shades = cohorts from observed data (survived)
-- Lighter shades = cohorts born during projection
-- Split by `ages >= period` (data) vs `ages < period` (projected)
+- Native (Estonian MT): red (female) / blue (male)
+- Immigrant (other MT): orange (female) / green (male), stacked
+- Dashed line marks projection boundary (cohorts born during projection period)
 
 ## TFR Chart
 - Solid blue line: observed history from 2010 onward
 - Dashed orange line: scenario, starts from last observed value
 - 2024–2025 values hardcoded at 1.18; scenario starts 2026
-
-## Branch: `immigration` — remaining work
-- [ ] Update `streamlit_proj.py`: load immigration data, add sidebar slider, wire 4-vector output into indicators and pyramid
-- [ ] Update `meetod.py` and `allikad.py` to document the migration model and new data sources
 
 ## Known Issues / Design Decisions
 - Mortality fixed at base year — no mortality improvement scenario

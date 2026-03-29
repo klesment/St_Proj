@@ -86,14 +86,15 @@ print(f'  Other MT: male={int(male_other.sum()):,}  female={int(fem_other.sum())
 
 # ---------------------------------------------------------------------------
 # 2. Inflow age distribution -- RVR09
-#    Immigrants 2019-2021, excluding Estonian-born (country code 1),
+#    Immigrants 2017-2019, excluding Estonian-born (country code 1),
 #    averaged across years, normalised to proportions summing to 1.0
 #    per sex.
+#    Same period as emigration rates (RVR03/RVR10) to avoid COVID-year distortion.
 #    Dimensions: Year(3) x AgeGroup(18) x Sex(2) x Country(9)
 # ---------------------------------------------------------------------------
-print('Fetching RVR09 (inflow 2019-2021)...')
+print('Fetching RVR09 (inflow 2017-2019)...')
 inflow_raw = post('RVR09', [
-    {'code': 'Aasta',      'selection': {'filter': 'item', 'values': ['2019','2020','2021']}},
+    {'code': 'Aasta',      'selection': {'filter': 'item', 'values': ['2017','2018','2019']}},
     {'code': 'Vanuserühm', 'selection': {'filter': 'item', 'values': [
         '2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19'
     ]}},
@@ -201,7 +202,7 @@ print(f'  Peak other-MT emig rate (male): age {AGE_LABELS[oth_emig_avg[0].argmax
 # 4. Baseline inflow counts -- RVR03 (total) + RVR10 (Estonians)
 #    Same source arrays as Section 3; immigration indicator index 0.
 #    Non-Estonian inflow = total − Estonian (same subtraction as emigration).
-#    Absolute counts (not rates), averaged over 2019-2021.
+#    Absolute counts (not rates), averaged over 2017-2019.
 # ---------------------------------------------------------------------------
 print('Deriving baseline inflow counts from RVR03 / RVR10...')
 

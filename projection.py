@@ -34,14 +34,14 @@ KNOWN_TFR     = {2024: 1.18, 2025: 1.18}
 HISTORY_START = 2010   # first year shown on the TFR chart
 
 # Age range boundaries (inclusive lower, exclusive upper)
-AGE_SCHOOL_MIN =  7   # start of compulsory education
-AGE_SCHOOL_MAX = 18   # end of compulsory education (ages 7–17)
+AGE_SCHOOL_MIN =  0   # start of child age group
+AGE_SCHOOL_MAX = 18   # end of child age group (ages 0–17)
 AGE_WORK_MIN   = 18   # working-age lower bound
 AGE_WORK_MAX   = 65   # standard working-age upper bound (ages 15–64)
 AGE_OLD_MIN    = 65   # old-age lower bound
 
-# Immigration constants — derived from RVR09 2019-2021 average, excl. Estonian returnees
-IMMIG_FEMALE_SHARE = 0.3942   # share of annual inflow that is female
+# Immigration constants — derived from RVR09 2017-2019 average, excl. Estonian returnees
+IMMIG_FEMALE_SHARE = 0.3948   # share of annual inflow that is female
 
 
 def load_data(url):
@@ -58,11 +58,8 @@ def load_tfr_history():
     s  = requests.get(URL_TFRMAB).content
     df = pd.read_csv(io.StringIO(s.decode('utf-8')), skipinitialspace=True)
     df.columns = df.columns.str.strip()
-    history = {
-        int(row['Year1']): float(row['TFR'])
-        for _, row in df.iterrows()
-        if int(row['Year1']) >= HISTORY_START
-    }
+    df = df[df['Year1'].astype(int) >= HISTORY_START]
+    history = dict(zip(df['Year1'].astype(int), df['TFR'].astype(float)))
     history.update(KNOWN_TFR)   # add/override with values not yet in the file
     return history
 
@@ -73,13 +70,12 @@ def compute_tfr_start(asfr_df, year):
 
 def ramp_fun(tfr_chng, speed, pr_per):
     x = np.linspace(0, 1, pr_per + 1)[1:]  # skip x=0 so period=1 applies the full change
-    y = tfr_chng * np.exp(-RAMP_SHAPE * np.exp(-speed * x))
-    return np.add(y, 1)
+    return 1 + tfr_chng * np.exp(-RAMP_SHAPE * np.exp(-speed * x))
 
 
 def build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period):
     d = pd.DataFrame({
-        'tfr':    np.multiply(np.full(period, tfr_start), ramp_fun(tfr_change, ramp_speed, period)),
+        'tfr':    tfr_start * ramp_fun(tfr_change, ramp_speed, period),
         'mab':    np.linspace(MAB_BASE, mab_stop, period),
         'sd_mab': np.full(period, SD_MAB_BASE),
     })
@@ -341,11 +337,9 @@ def compute_indicators(out_female, out_male):
     school_age  = total[AGE_SCHOOL_MIN:AGE_SCHOOL_MAX].sum()
     working_age = total[AGE_WORK_MIN:AGE_WORK_MAX].sum()
     old_age     = total[AGE_OLD_MIN:].sum()
-    oadr        = old_age / working_age * 100 if working_age > 0 else np.nan
 
     return {
         'school_age':  school_age,
         'working_age': working_age,
         'old_age':     old_age,
-        'oadr':        oadr,
     }
