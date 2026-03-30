@@ -169,7 +169,6 @@ N0_nat_m = np.array(N0_male) - N0_imm_m
 
 # --- Sidebar ---
 st.sidebar.markdown('Vali prognoosi eeldused')
-st.sidebar.divider()
 
 option_map = {5: "▁", 6: "▄", 8: "█"}
 
@@ -193,7 +192,6 @@ def user_input_features(tfr_start):
         "Suremuse langus (%/a)", min_value=0.0, max_value=2.0, step=0.1, value=0.0) / 100
     Annual_immig = st.sidebar.slider(
         "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
-    st.sidebar.divider()
     Baseline_inflow = st.sidebar.segmented_control(
         "Baassisseränne", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
