@@ -39,7 +39,8 @@ eeldustega. Kasutaja saab anda prognoosimiseks ette:
 - sündimustaseme muutumise kiirus, st kas muutus toimub kiiresti või aeglaselt
 - ema keskmise sünnivanuse muutus, nt et see jätkab tõusu
 - suremuse aastane langus (%)
-- aastane lisasisseränne
+- aastane lisasisseränne (muu emakeel)
+- baassisserände ja baasväljarände maht (0/50/100% baastasemest)
 
 Sisse- ja väljaränne on mudelis arvesse võetud (vt allpool).
 ''')
@@ -208,13 +209,17 @@ automaatselt rahvastiku suurusega — mida suurem rahvastik, seda rohkem lahkuja
 
 **Sisseränne** koosneb kahest komponendist:
 
-- **Baassisseränne** (alati sees): 2017–2019 keskmised aastased saabujad rahvuse kaupa (RVR03 ja
-  RVR10 põhjal). Eesti kodanikud (tagasirändajad) lisatakse eesti emakeelega rühma, muu
-  kodakondsusega isikud muu emakeelega rühma.
+- **Baassisseränne** (kasutaja valib 0/50/100%): 2017–2019 keskmised aastased saabujad rahvuse
+  kaupa (RVR03 ja RVR10 põhjal). Eesti kodanikud (tagasirändajad) lisatakse eesti emakeelega
+  rühma, muu kodakondsusega isikud muu emakeelega rühma. Vaikimisi 100%.
 - **Lisaränne** (kasutaja valib): täiendav aastane muu emakeelega sisserände maht baastaseme peal.
   Vanusejaotus tuleneb 2017–2019 välismaalt saabunute keskmisest vanusjaotusest (tabel RVR09,
   v.a eestlaste tagasiränne). Soosuhe on fikseeritud vaadeldud perioodi keskmise põhjal
   (39% naised, 61% mehed).
+
+**Baasväljaränne** on samuti kasutaja poolt skaleeritav (0/50/100%). Vaikimisi rakenduvad täies
+mahus 2017–2019 keskmised vanuse- ja soospeciifilised väljarändemäärad. 0% tähendab, et kedagi
+ei lahku; 50% poolitab kõik väljarändemäärad.
 
 Iga prognoosiaasta järjekord on järgmine:
 
