@@ -57,7 +57,7 @@ def load_immig_data(_lt_female, _lt_male):
 
 @st.cache_data
 def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_immig,
-                   mort_improvement,
+                   mort_improvement, baseline_inflow, emigration_scale,
                    _lt_female, _lt_male,
                    n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
                    inflow_dist_f, inflow_dist_m,
@@ -105,18 +105,18 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
     )
 
     # Total inflow: baseline (always on) + scenario (user-controlled, immigrant stock only)
-    nat_inflow_f = np.tile(np.array(base_nat_f), (period, 1))
-    nat_inflow_m = np.tile(np.array(base_nat_m), (period, 1))
-    imm_inflow_f = np.tile(np.array(base_imm_f), (period, 1)) + scen_imm_f
-    imm_inflow_m = np.tile(np.array(base_imm_m), (period, 1)) + scen_imm_m
+    nat_inflow_f = np.tile(np.array(base_nat_f) * baseline_inflow, (period, 1))
+    nat_inflow_m = np.tile(np.array(base_nat_m) * baseline_inflow, (period, 1))
+    imm_inflow_f = np.tile(np.array(base_imm_f) * baseline_inflow, (period, 1)) + scen_imm_f
+    imm_inflow_m = np.tile(np.array(base_imm_m) * baseline_inflow, (period, 1)) + scen_imm_m
 
     nat_f, nat_m, out_imm_f, out_imm_m = project_both_sexes(
         np.array(LL), subd_m_arr, l0_r_arr,
         n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
         nat_inflow_f, nat_inflow_m,
         imm_inflow_f, imm_inflow_m,
-        np.array(emig_nat_f), np.array(emig_nat_m),
-        np.array(emig_imm_f), np.array(emig_imm_m),
+        np.array(emig_nat_f) * emigration_scale, np.array(emig_nat_m) * emigration_scale,
+        np.array(emig_imm_f) * emigration_scale, np.array(emig_imm_m) * emigration_scale,
         period,
     )
     return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end
@@ -168,7 +168,6 @@ N0_nat_f = np.array(N0)      - N0_imm_f
 N0_nat_m = np.array(N0_male) - N0_imm_m
 
 # --- Sidebar ---
-st.sidebar.markdown(f'Prognoosi alusandmed on {BASE_YEAR}')
 st.sidebar.markdown('Vali prognoosi eeldused')
 st.sidebar.divider()
 
@@ -190,19 +189,28 @@ def user_input_features(tfr_start):
     MAB_end = st.sidebar.slider(
         "Keskmine sünnitusvanus perioodi lõpus", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
         step=0.5, value=MAB_BASE)
-    Annual_immig = st.sidebar.slider(
-        "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
     Mort_impr = st.sidebar.slider(
         "Suremuse langus (%/a)", min_value=0.0, max_value=2.0, step=0.1, value=0.0) / 100
-    return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr
+    Annual_immig = st.sidebar.slider(
+        "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
+    st.sidebar.divider()
+    Baseline_inflow = st.sidebar.segmented_control(
+        "Baassisseränne", options=[0, 50, 100],
+        format_func=lambda x: f"{x}%",
+        selection_mode='single', default=100) / 100
+    Emigration = st.sidebar.segmented_control(
+        "Baasväljaränne", options=[0, 50, 100],
+        format_func=lambda x: f"{x}%",
+        selection_mode='single', default=100) / 100
+    return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr, Baseline_inflow, Emigration
 
 
-TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement = user_input_features(tfr_start)
+TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement, baseline_inflow, emigration_scale = user_input_features(tfr_start)
 
 # --- Projection ---
 d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end = run_projection(
     tfr_start, TFR_Change, Ramp, mab_stop, period, extra_immig,
-    mort_improvement,
+    mort_improvement, baseline_inflow, emigration_scale,
     _lt_female=lt_base, _lt_male=lt_male_base,
     n0_nat_f=N0_nat_f.tolist(), n0_nat_m=N0_nat_m.tolist(),
     n0_imm_f=N0_imm_f.tolist(), n0_imm_m=N0_imm_m.tolist(),
@@ -293,6 +301,18 @@ st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal  |  Kriipsjoon eral
 st.pyplot(fig2, width='stretch')
 plt.close(fig2)
 
+# --- Non-Estonian summary metrics ---
+imm_total_end   = int(round(imm_f.sum()    + imm_m.sum()))
+imm_newborn_end = int(round(imm_f[0]       + imm_m[0]))
+imm_total_start = int(round(N0_imm_f.sum() + N0_imm_m.sum()))
+imm_newborn_start = int(round(N0_imm_f[0]  + N0_imm_m[0]))
+
+pyr_col1, pyr_col2, pyr_col3 = st.columns(3)
+pyr_col1.metric(f"Muu emakeel kokku {BASE_YEAR + period}",
+                f"{imm_total_end:,}", imm_total_end - imm_total_start, border=False)
+pyr_col2.metric(f"Muu emakeel vastsündinud {BASE_YEAR + period}",
+                f"{imm_newborn_end:,}", imm_newborn_end - imm_newborn_start, border=False)
+
 # --- Structural indicators ---
 work_pct_end     = ind_end['working_age']  / p_size_end   * 100
 work_pct_start   = ind_start['working_age'] / p_size_start * 100
@@ -316,18 +336,18 @@ imm_work_pct_start   = imm_work_start   / ind_start['working_age'] * 100 if ind_
 imm_old_pct_start    = imm_old_start    / ind_start['old_age']     * 100 if ind_start['old_age']     > 0 else np.nan
 
 # Net migration: inflow (fixed counts) minus emigration rates × projected population
-inflow_nat_end   = base_nat_f.sum() + base_nat_m.sum()
-inflow_imm_end   = base_imm_f.sum() + base_imm_m.sum() + extra_immig
+inflow_nat_end   = (base_nat_f.sum() + base_nat_m.sum()) * baseline_inflow
+inflow_imm_end   = (base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow + extra_immig
 inflow_total_end = inflow_nat_end + inflow_imm_end
-emig_nat_end     = (nat_f * emig_nat_f).sum() + (nat_m * emig_nat_m).sum()
-emig_imm_end     = (imm_f * emig_imm_f).sum() + (imm_m * emig_imm_m).sum()
+emig_nat_end     = (nat_f * emig_nat_f).sum() * emigration_scale + (nat_m * emig_nat_m).sum() * emigration_scale
+emig_imm_end     = (imm_f * emig_imm_f).sum() * emigration_scale + (imm_m * emig_imm_m).sum() * emigration_scale
 net_migration_end  = inflow_total_end - emig_nat_end - emig_imm_end
 imm_inflow_pct_end = inflow_imm_end / inflow_total_end * 100 if inflow_total_end > 0 else np.nan
 
-inflow_total_base   = base_nat_f.sum() + base_nat_m.sum() + base_imm_f.sum() + base_imm_m.sum()
-inflow_imm_base     = base_imm_f.sum() + base_imm_m.sum()
-emig_nat_base       = (N0_nat_f * emig_nat_f).sum() + (N0_nat_m * emig_nat_m).sum()
-emig_imm_base       = (N0_imm_f * emig_imm_f).sum() + (N0_imm_m * emig_imm_m).sum()
+inflow_total_base   = (base_nat_f.sum() + base_nat_m.sum() + base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow
+inflow_imm_base     = (base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow
+emig_nat_base       = ((N0_nat_f * emig_nat_f).sum() + (N0_nat_m * emig_nat_m).sum()) * emigration_scale
+emig_imm_base       = ((N0_imm_f * emig_imm_f).sum() + (N0_imm_m * emig_imm_m).sum()) * emigration_scale
 net_migration_base  = inflow_total_base - emig_nat_base - emig_imm_base
 imm_inflow_pct_base = inflow_imm_base / inflow_total_base * 100 if inflow_total_base > 0 else np.nan
 
