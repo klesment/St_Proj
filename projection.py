@@ -139,6 +139,39 @@ def build_male_survival(lt_male):
     return SUBD_m
 
 
+def improve_lt(lt, annual_rate, year):
+    """
+    Return a copy of lt with all mx scaled by (1 - annual_rate)^year.
+    Rebuilds qx, lx, Lx, Tx from the improved mx.
+
+    annual_rate : fractional annual improvement (e.g. 0.01 = 1 %/year)
+    year        : projection year index (0 = base year, no change)
+    """
+    if annual_rate == 0 or year == 0:
+        return lt
+    factor  = (1.0 - annual_rate) ** year
+    mx      = lt['mx'].values * factor
+    n       = len(mx)
+    qx      = np.zeros(n)
+    qx[:-1] = mx[:-1] / (1.0 + 0.5 * mx[:-1])   # actuarial approx, closed groups
+    qx[-1]  = 1.0                                  # open age group
+    data_radix = lt['lx'].iloc[0]   # preserve the data's own radix (HMD uses 100 000)
+    lx      = np.empty(n)
+    lx[0]   = data_radix
+    lx[1:]  = data_radix * np.cumprod(1.0 - qx[:-1])
+    Lx      = np.empty(n)
+    Lx[:-1] = 0.5 * (lx[:-1] + lx[1:])
+    Lx[-1]  = lx[-1] / mx[-1] if mx[-1] > 0 else 0.0   # open group
+    Tx      = np.cumsum(Lx[::-1])[::-1].copy()
+    out     = lt.copy().reset_index(drop=True)
+    out['mx'] = mx
+    out['qx'] = qx
+    out['lx'] = lx
+    out['Lx'] = Lx
+    out['Tx'] = Tx
+    return out
+
+
 def build_immig_vectors(annual_total, dist_female, dist_male, per):
     """
     Build per-year immigration vectors from a constant annual total and
@@ -170,8 +203,8 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
     Project native and immigrant populations simultaneously.
 
     lmat_female  - array of yearly female Leslie matrices (per, MAX_AGE, MAX_AGE)
-    subd_male    - male survival vector (length MAX_AGE)
-    l0_ratio     - L0_male / L0_female: first-year survival ratio for male births
+    subd_male    - male survival array, shape (per, MAX_AGE)
+    l0_ratio     - array of length per: L0_male / L0_female each year
     pop_native_f - initial native female vector
     pop_native_m - initial native male vector
     pop_immig_f  - initial immigrant female vector
@@ -194,21 +227,23 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
     N_nat_m = np.array(pop_native_m, dtype=float)
     N_imm_f = np.array(pop_immig_f,  dtype=float)
     N_imm_m = np.array(pop_immig_m,  dtype=float)
-    male_birth_factor = SEX_RATIO_AT_BIRTH * l0_ratio
 
     for i in range(per):
+        subd_m            = subd_male[i]
+        male_birth_factor = SEX_RATIO_AT_BIRTH * l0_ratio[i]
+
         # --- survival + births ---
         N_nat_f_new  = np.dot(lmat_female[i], N_nat_f)
         leslie_imm_f = np.dot(lmat_female[i], N_imm_f)
 
         N_nat_m_new       = np.zeros(MAX_AGE)
-        N_nat_m_new[1:]   = N_nat_m[:-1] * subd_male[:-1]
-        N_nat_m_new[-1]  += N_nat_m[-1]  * subd_male[-1]
+        N_nat_m_new[1:]   = N_nat_m[:-1] * subd_m[:-1]
+        N_nat_m_new[-1]  += N_nat_m[-1]  * subd_m[-1]
         N_nat_m_new[0]    = N_nat_f_new[0] * male_birth_factor
 
         N_imm_m_new       = np.zeros(MAX_AGE)
-        N_imm_m_new[1:]   = N_imm_m[:-1] * subd_male[:-1]
-        N_imm_m_new[-1]  += N_imm_m[-1]  * subd_male[-1]
+        N_imm_m_new[1:]   = N_imm_m[:-1] * subd_m[:-1]
+        N_imm_m_new[-1]  += N_imm_m[-1]  * subd_m[-1]
         N_imm_m_new[0]    = leslie_imm_f[0] * male_birth_factor
 
         # --- emigration (applied as rates to post-survival stock) ---

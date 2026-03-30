@@ -32,14 +32,16 @@ sündimuse, suremuse ja rände muutust.
 Arusaadavalt ei ole tuleviku sündimus, suremus ega rändevood teada. Prognoosimiseks on vaja nende
 kohta teha eeldusi ehk oletada, mis suunas vastavad arengud võiksid toimuda.
 
-Käesolev prognoosimudel keskendub ainult sündimuse komponendile. Mudel võimaldab teatud piirides
-sündimuse muutust puudutavate eeldustega manipuleerida. Näiteks anda prognoosimiseks ette:
+Käesolev prognoosimudel võimaldab teatud piirides manipuleerida sündimuse, suremuse ja rände
+eeldustega. Kasutaja saab anda prognoosimiseks ette:
 
 - perioodsündimuse langus/tõus prognoositava perioodi jooksul
 - sündimustaseme muutumise kiirus, st kas muutus toimub kiiresti või aeglaselt
 - ema keskmise sünnivanuse muutus, nt et see jätkab tõusu
+- suremuse aastane langus (%)
+- aastane lisasisseränne
 
-Suremus on fikseeritud alusaasta tasemel. Sisse- ja väljaränne on mudelis arvesse võetud (vt allpool).
+Sisse- ja väljaränne on mudelis arvesse võetud (vt allpool).
 ''')
 
 st.markdown('''
@@ -111,8 +113,8 @@ x_t = \mathbf{L}^t x_0
 st.markdown(r'''
 See aga tähendab, et sündimuskordajad jäävad kogu perioodi vältel muutumatuks, mis ei ole realistlik.
 Antud juhul kasutame järjestikuseid ühe aasta prognoose nii, et sündimuskordajad muutuvad igal aastal —
-igal aastal arvutatakse uus Leslie maatriks, mis vastab selle aasta eeldatavatele sündimuskordajatele.
-Suremus on fikseeritud 2023. aasta tasemel.
+igal aastal arvutatakse uus Leslie maatriks, mis vastab selle aasta eeldatavatele sündimuskordajatele
+ja suremustasemele.
 ''')
 
 st.markdown(r'''
@@ -152,6 +154,25 @@ st.latex(r"\alpha_2 = \frac{MAB}{sdMAB^2}")
 st.latex(r"\alpha_3 = \left(\frac{MAB}{sdMAB}\right)^2")
 
 st.write("Nendest kahte parameetrit (TFR, MAB) saab kasutaja prognoosi tegemisel muuta.")
+
+st.markdown(r'''
+### Suremuse muutus
+
+Suremuse stsenaarium on määratud ühe parameetriga: **suremuse aastane langus** (%). See tähendab, et
+iga vanusrühma suremuskordaja $m_x$ langeb igal prognoosiaastal sama protsendi võrra:
+
+$$m_x(t) = m_x(0) \cdot (1 - r)^t$$
+
+kus $r$ on kasutaja valitud aastane langumäär ja $t$ on prognoosiaasta number. Langus on seega
+**geomeetriline**: absoluutne muutus väheneb iga aastaga, kuna protsent rakendub juba langenud
+tasemele. See on kooskõlas tegeliku suremuse arenguga — mida madalam on juba saavutatud suremustase,
+seda raskem on seda edasi vähendada.
+
+Igal prognoosiaastal arvutatakse muudetud $m_x$ põhjal uus elutabel ($q_x$, $l_x$, $L_x$, $T_x$)
+ning selle põhjal uus Leslie maatriks. Nii naiste kui meeste suremus langeb sama määraga.
+
+Kui langumäär on 0%, jääb suremus kogu perioodi vältel 2023. aasta tasemele.
+''')
 
 st.markdown('''
 ### Alusandmed

@@ -11,7 +11,7 @@ from projection import (
     AGE_SCHOOL_MIN, AGE_SCHOOL_MAX, AGE_WORK_MIN, AGE_WORK_MAX, AGE_OLD_MIN,
     KNOWN_TFR,
     load_data, load_tfr_history, compute_tfr_start, build_scenario_df,
-    asfr_gamma, build_leslie_base, leslie, build_male_survival,
+    asfr_gamma, build_leslie_base, leslie, build_male_survival, improve_lt,
     load_mt_stock, load_immig_inflow_dist, load_emig_rates, load_immig_baseline,
     build_immig_vectors, project_both_sexes, compute_indicators,
 )
@@ -57,22 +57,45 @@ def load_immig_data(_lt_female, _lt_male):
 
 @st.cache_data
 def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_immig,
+                   mort_improvement,
                    _lt_female, _lt_male,
                    n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
                    inflow_dist_f, inflow_dist_m,
                    emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
                    base_nat_f, base_nat_m, base_imm_f, base_imm_m):
+    e0_base  = _lt_female['Tx'].iloc[0] / _lt_female['lx'].iloc[0]
+    e0m_base = _lt_male['Tx'].iloc[0]   / _lt_male['lx'].iloc[0]
     if period == 0:
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
-        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m)
+        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base
 
     d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period)
     F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
 
-    base_leslie = build_leslie_base(_lt_female)
-    LL          = [leslie(f, base_leslie) for f in F]
-    subd_male   = build_male_survival(_lt_male)
-    l0_ratio    = _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0]
+    if mort_improvement == 0:
+        # Fast path: single life table for all years
+        base_leslie  = build_leslie_base(_lt_female)
+        LL           = [leslie(f, base_leslie) for f in F]
+        subd_m_arr   = np.tile(build_male_survival(_lt_male), (period, 1))
+        l0_r_arr     = np.full(period, _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0])
+        e0_end       = e0_base
+        e0m_end      = e0m_base
+    else:
+        # Per-year life tables with mortality improvement
+        LL         = []
+        subd_m_arr = np.zeros((period, MAX_AGE))
+        l0_r_arr   = np.zeros(period)
+        for t in range(period):
+            lt_f_t = improve_lt(_lt_female, mort_improvement, t + 1)
+            lt_m_t = improve_lt(_lt_male,   mort_improvement, t + 1)
+            base_t = build_leslie_base(lt_f_t)
+            LL.append(leslie(F[t], base_t))
+            subd_m_arr[t] = build_male_survival(lt_m_t)
+            l0_r_arr[t]   = lt_m_t['Lx'].iloc[0] / lt_f_t['Lx'].iloc[0]
+        lt_end   = improve_lt(_lt_female, mort_improvement, period)
+        lt_m_end = improve_lt(_lt_male,   mort_improvement, period)
+        e0_end   = lt_end['Tx'].iloc[0]   / lt_end['lx'].iloc[0]
+        e0m_end  = lt_m_end['Tx'].iloc[0] / lt_m_end['lx'].iloc[0]
 
     # Scenario inflow: user-controlled additional non-Estonian immigrants
     scen_imm_f, scen_imm_m = build_immig_vectors(
@@ -88,7 +111,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
     imm_inflow_m = np.tile(np.array(base_imm_m), (period, 1)) + scen_imm_m
 
     nat_f, nat_m, out_imm_f, out_imm_m = project_both_sexes(
-        np.array(LL), subd_male, l0_ratio,
+        np.array(LL), subd_m_arr, l0_r_arr,
         n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
         nat_inflow_f, nat_inflow_m,
         imm_inflow_f, imm_inflow_m,
@@ -96,7 +119,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
         np.array(emig_imm_f), np.array(emig_imm_m),
         period,
     )
-    return d, nat_f, nat_m, out_imm_f, out_imm_m
+    return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end
 
 
 # --- Data ---
@@ -113,6 +136,8 @@ except Exception as e:
 lt_base      = lt[lt['Year'] == BASE_YEAR]
 lt_male_base = lt_male[lt_male['Year'] == BASE_YEAR]
 pop_base     = pop[pop['Year'] == BASE_YEAR]
+e0_base      = lt_base['Tx'].iloc[0]      / lt_base['lx'].iloc[0]
+e0m_base     = lt_male_base['Tx'].iloc[0] / lt_male_base['lx'].iloc[0]
 N0           = pop_base.Female[0:MAX_AGE].tolist()
 N0_male      = pop_base.Male[0:MAX_AGE].tolist()
 tfr_start    = compute_tfr_start(asfr, BASE_YEAR)
@@ -144,13 +169,7 @@ N0_nat_m = np.array(N0_male) - N0_imm_m
 
 # --- Sidebar ---
 st.sidebar.markdown(f'Prognoosi alusandmed on {BASE_YEAR}')
-st.sidebar.markdown('''Allpool vali prognoosi eeldused:
-
-1. prognoosi sihtaasta
-2. sündimustase perioodi lõpus ja muutuse kiirus.
-3. keskmine sünnitusvanus perioodi lõpus
-4. aastane sisseränne
-''')
+st.sidebar.markdown('Vali prognoosi eeldused')
 st.sidebar.divider()
 
 option_map = {5: "▁", 6: "▄", 8: "█"}
@@ -164,7 +183,7 @@ def user_input_features(tfr_start):
         min_value=0.5, max_value=3.0, step=0.05, value=float(round(tfr_start * 20) / 20))
     TFR_Change = tfr_end / tfr_start - 1
     Ramp = st.sidebar.segmented_control(
-        "Muutuse kiirus",
+        "TFR muutuse kiirus",
         options=option_map.keys(),
         format_func=lambda option: option_map[option],
         selection_mode='single', default=6)
@@ -173,14 +192,17 @@ def user_input_features(tfr_start):
         step=0.5, value=MAB_BASE)
     Annual_immig = st.sidebar.slider(
         "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
-    return TFR_Change, Ramp, MAB_end, Years, Annual_immig
+    Mort_impr = st.sidebar.slider(
+        "Suremuse langus (%/a)", min_value=0.0, max_value=2.0, step=0.1, value=0.0) / 100
+    return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr
 
 
-TFR_Change, Ramp, mab_stop, period, extra_immig = user_input_features(tfr_start)
+TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement = user_input_features(tfr_start)
 
 # --- Projection ---
-d, nat_f, nat_m, imm_f, imm_m = run_projection(
+d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end = run_projection(
     tfr_start, TFR_Change, Ramp, mab_stop, period, extra_immig,
+    mort_improvement,
     _lt_female=lt_base, _lt_male=lt_male_base,
     n0_nat_f=N0_nat_f.tolist(), n0_nat_m=N0_nat_m.tolist(),
     n0_imm_f=N0_imm_f.tolist(), n0_imm_m=N0_imm_m.tolist(),
@@ -194,7 +216,6 @@ d, nat_f, nat_m, imm_f, imm_m = run_projection(
 out      = nat_f + imm_f
 out_male = nat_m + imm_m
 
-tfr_last     = round(d['tfr'].iloc[-1], 2)
 p_size_start = sum(pop['Total'][pop['Year'] == BASE_YEAR])
 p_size_end   = sum(out) + sum(out_male)
 total_births = round(out[0] * (1 + SEX_RATIO_AT_BIRTH))
@@ -231,14 +252,14 @@ with col1:
 with col2:
     col_a, col_b = st.columns(2)
     col_c, col_d = st.columns(2)
-    col_a.metric(f"TFR {BASE_YEAR + period}",
-                 tfr_last, round(tfr_last - tfr_start, 1), border=False)
-    col_b.metric(f"Sünnitusvanus {BASE_YEAR + period}",
-                 round(mab_stop, 1), round(mab_stop - MAB_BASE, 1), border=False)
-    col_c.metric(f"Rahvaarv (milj.)  {BASE_YEAR + period}",
+    col_a.metric(f"Rahvaarv (milj.)  {BASE_YEAR + period}",
                  round(p_size_end / 1_000_000, 3), round(p_size_end - p_size_start), border=False)
-    col_d.metric(f"Sündide arv {BASE_YEAR + period}",
+    col_b.metric(f"Sündide arv {BASE_YEAR + period}",
                  total_births, "", border=False)
+    col_c.metric(f"Eluiga (N) {BASE_YEAR + period}",
+                 round(e0_end, 1), round(e0_end - e0_base, 1), border=False)
+    col_d.metric(f"Eluiga (M) {BASE_YEAR + period}",
+                 round(e0m_end, 1), round(e0m_end - e0m_base, 1), border=False)
 
 # --- Population pyramid ---
 ind_end   = compute_indicators(out, out_male)
