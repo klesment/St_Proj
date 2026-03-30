@@ -184,7 +184,7 @@ def user_input_features(tfr_start):
         "TFR muutuse kiirus",
         options=option_map.keys(),
         format_func=lambda option: option_map[option],
-        selection_mode='single', default=6)
+        selection_mode='single', default=6) or 6
     MAB_end = st.sidebar.slider(
         "Keskmine sünnitusvanus perioodi lõpus", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
         step=0.5, value=MAB_BASE)
@@ -192,14 +192,14 @@ def user_input_features(tfr_start):
         "Suremuse langus (%/a)", min_value=0.0, max_value=2.0, step=0.1, value=0.0) / 100
     Annual_immig = st.sidebar.slider(
         "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
-    Baseline_inflow = st.sidebar.segmented_control(
+    Baseline_inflow = (st.sidebar.segmented_control(
         "Baassisseränne", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
-        selection_mode='single', default=100) / 100
-    Emigration = st.sidebar.segmented_control(
+        selection_mode='single', default=100) or 100) / 100
+    Emigration = (st.sidebar.segmented_control(
         "Baasväljaränne", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
-        selection_mode='single', default=100) / 100
+        selection_mode='single', default=100) or 100) / 100
     return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr, Baseline_inflow, Emigration
 
 
