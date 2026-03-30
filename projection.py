@@ -68,14 +68,17 @@ def compute_tfr_start(asfr_df, year):
     return round(sum(asfr_df['ASFR'][asfr_df['Year'] == year]), 2)
 
 
-def ramp_fun(tfr_chng, speed, pr_per):
+def ramp_fun(tfr_chng, speed, pr_per, osc_amp=0.0, osc_cycle=10):
     x = np.linspace(0, 1, pr_per + 1)[1:]  # skip x=0 so period=1 applies the full change
-    return 1 + tfr_chng * np.exp(-RAMP_SHAPE * np.exp(-speed * x))
+    g = np.exp(-RAMP_SHAPE * np.exp(-speed * x))
+    g = g / g[-1]  # normalize so target is always reached at end
+    osc = osc_amp * g * np.sin(2 * np.pi * (pr_per / osc_cycle) * x) if osc_amp else 0.0
+    return 1 + tfr_chng * g + osc
 
 
-def build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period):
+def build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period, osc_amp=0.0, osc_cycle=10):
     d = pd.DataFrame({
-        'tfr':    tfr_start * ramp_fun(tfr_change, ramp_speed, period),
+        'tfr':    tfr_start * ramp_fun(tfr_change, ramp_speed, period, osc_amp, osc_cycle),
         'mab':    np.linspace(MAB_BASE, mab_stop, period),
         'sd_mab': np.full(period, SD_MAB_BASE),
     })

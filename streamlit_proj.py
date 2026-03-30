@@ -62,14 +62,15 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
                    n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
                    inflow_dist_f, inflow_dist_m,
                    emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
-                   base_nat_f, base_nat_m, base_imm_f, base_imm_m):
+                   base_nat_f, base_nat_m, base_imm_f, base_imm_m,
+                   osc_amp=0.0, osc_cycle=10):
     e0_base  = _lt_female['Tx'].iloc[0] / _lt_female['lx'].iloc[0]
     e0m_base = _lt_male['Tx'].iloc[0]   / _lt_male['lx'].iloc[0]
     if period == 0:
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
         return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base
 
-    d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period)
+    d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period, osc_amp, osc_cycle)
     F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
 
     if mort_improvement == 0:
@@ -170,7 +171,7 @@ N0_nat_m = np.array(N0_male) - N0_imm_m
 # --- Sidebar ---
 st.sidebar.markdown('Vali prognoosi eeldused')
 
-option_map = {5: "▁", 6: "▄", 8: "█"}
+option_map = {2: "▁", 6: "▄", 20: "█"}
 
 def user_input_features(tfr_start):
     target_year = st.sidebar.slider(
@@ -186,6 +187,11 @@ def user_input_features(tfr_start):
         format_func=lambda option: option_map[option],
         selection_mode='single', default=6)
     Ramp = _ramp if _ramp is not None else 6
+    Osc_amp = st.sidebar.slider(
+        "TFR kõikumise amplituud", min_value=0.0, max_value=0.5, step=0.05, value=0.0)
+    Osc_cycle = st.sidebar.slider(
+        "TFR kõikumise periood (a)", min_value=5, max_value=30, step=5, value=10,
+        disabled=(Osc_amp == 0.0))
     MAB_end = st.sidebar.slider(
         "Keskmine sünnitusvanus perioodi lõpus", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
         step=0.5, value=MAB_BASE)
@@ -203,10 +209,10 @@ def user_input_features(tfr_start):
         format_func=lambda x: f"{x}%",
         selection_mode='single', default=100)
     Emigration = (_em if _em is not None else 100) / 100
-    return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr, Baseline_inflow, Emigration
+    return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr, Baseline_inflow, Emigration, Osc_amp, Osc_cycle
 
 
-TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement, baseline_inflow, emigration_scale = user_input_features(tfr_start)
+TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement, baseline_inflow, emigration_scale, osc_amp, osc_cycle = user_input_features(tfr_start)
 
 # --- Projection ---
 d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end = run_projection(
@@ -220,6 +226,7 @@ d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end = run_projection(
     emig_imm_f=emig_imm_f.tolist(), emig_imm_m=emig_imm_m.tolist(),
     base_nat_f=base_nat_f.tolist(), base_nat_m=base_nat_m.tolist(),
     base_imm_f=base_imm_f.tolist(), base_imm_m=base_imm_m.tolist(),
+    osc_amp=osc_amp, osc_cycle=osc_cycle,
 )
 
 out      = nat_f + imm_f

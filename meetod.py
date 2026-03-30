@@ -126,6 +126,11 @@ kiireneb esmalt ja aeglustub perioodi lõpuks. Muutuse kiiruse saab kasutaja ise
 
 Aastate 2024 ja 2025 tegelikud TFR väärtused (mõlemal 1,18) on mudelisse fikseeritud.
 Kasutaja valitud stsenaarium rakendub alates 2026. aastast.
+
+Lisaks saab kasutaja aktiveerida **TFR kõikumise** platoo ümber: sinusoidaalne komponent
+ilmub pärast platoo saavutamist ja on moduleeritud Gompertzi kõveraga nii, et kõikumine
+on rampimise ajal summutatud ning avaldub täies mahus alles siis, kui TFR on sihtnivoole
+jõudnud. Kasutaja saab valida kõikumise amplituudi (TFR ühikutes) ja perioodi (aastates).
 ''')
 
 st.markdown('''
