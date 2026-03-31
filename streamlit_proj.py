@@ -431,4 +431,4 @@ for tab, yr in zip(tabs, all_snap_years):
             'Muu naine':   np.round(sn_imm_f).astype(int),
             'Muu mees':    np.round(sn_imm_m).astype(int),
         }, index=pd.Index(np.arange(MAX_AGE), name='Vanus'))
-        st.dataframe(snap_df, use_container_width=True)
+        st.dataframe(snap_df, width='stretch')
