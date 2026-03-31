@@ -201,7 +201,7 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
                        imm_inflow_f, imm_inflow_m,
                        emig_nat_f, emig_nat_m,
                        emig_imm_f, emig_imm_m,
-                       per):
+                       per, snapshot_years=None):
     """
     Project native and immigrant populations simultaneously.
 
@@ -230,6 +230,9 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
     N_nat_m = np.array(pop_native_m, dtype=float)
     N_imm_f = np.array(pop_immig_f,  dtype=float)
     N_imm_m = np.array(pop_immig_m,  dtype=float)
+
+    _snap_set = set(snapshot_years) if snapshot_years else set()
+    snapshots = {}
 
     for i in range(per):
         subd_m            = subd_male[i]
@@ -264,7 +267,13 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
         N_nat_f, N_nat_m = N_nat_f_new, N_nat_m_new
         N_imm_f, N_imm_m = N_imm_f_new, N_imm_m_new
 
-    return N_nat_f, N_nat_m, N_imm_f, N_imm_m
+        if _snap_set:
+            year = BASE_YEAR + i + 1
+            if year in _snap_set:
+                snapshots[year] = (N_nat_f.copy(), N_nat_m.copy(),
+                                   N_imm_f.copy(), N_imm_m.copy())
+
+    return N_nat_f, N_nat_m, N_imm_f, N_imm_m, snapshots
 
 
 def _disaggregate_5yr(counts_5yr, lx):

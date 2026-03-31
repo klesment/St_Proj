@@ -68,7 +68,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
     e0m_base = _lt_male['Tx'].iloc[0]   / _lt_male['lx'].iloc[0]
     if period == 0:
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
-        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base
+        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base, {}
 
     d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period, osc_amp, osc_cycle)
     F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
@@ -111,7 +111,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
     imm_inflow_f = np.tile(np.array(base_imm_f) * baseline_inflow, (period, 1)) + scen_imm_f
     imm_inflow_m = np.tile(np.array(base_imm_m) * baseline_inflow, (period, 1)) + scen_imm_m
 
-    nat_f, nat_m, out_imm_f, out_imm_m = project_both_sexes(
+    nat_f, nat_m, out_imm_f, out_imm_m, snapshots = project_both_sexes(
         np.array(LL), subd_m_arr, l0_r_arr,
         n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
         nat_inflow_f, nat_inflow_m,
@@ -119,8 +119,9 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
         np.array(emig_nat_f) * emigration_scale, np.array(emig_nat_m) * emigration_scale,
         np.array(emig_imm_f) * emigration_scale, np.array(emig_imm_m) * emigration_scale,
         period,
+        snapshot_years=(2050, 2075, 2100),
     )
-    return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end
+    return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end, snapshots
 
 
 # --- Data ---
@@ -215,7 +216,7 @@ def user_input_features(tfr_start):
 TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement, baseline_inflow, emigration_scale, osc_amp, osc_cycle = user_input_features(tfr_start)
 
 # --- Projection ---
-d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end = run_projection(
+d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end, snapshots = run_projection(
     tfr_start, TFR_Change, Ramp, mab_stop, period, extra_immig,
     mort_improvement, baseline_inflow, emigration_scale,
     _lt_female=lt_base, _lt_male=lt_male_base,
@@ -413,3 +414,21 @@ r3c.metric(
     f"{imm_old_pct_end - imm_old_pct_start:.1f}pp",
     border=False,
 )
+
+# --- Snapshot tables ---
+available_snaps = [yr for yr in (2050, 2075, 2100) if yr in snapshots]
+st.divider()
+st.caption("Rahvastik vanuse järgi")
+all_snap_years = [BASE_YEAR] + available_snaps
+all_snap_data  = {BASE_YEAR: (N0_nat_f, N0_nat_m, N0_imm_f, N0_imm_m), **snapshots}
+tabs = st.tabs([str(yr) for yr in all_snap_years])
+for tab, yr in zip(tabs, all_snap_years):
+    with tab:
+        sn_nat_f, sn_nat_m, sn_imm_f, sn_imm_m = all_snap_data[yr]
+        snap_df = pd.DataFrame({
+            'Eesti naine': np.round(sn_nat_f).astype(int),
+            'Eesti mees':  np.round(sn_nat_m).astype(int),
+            'Muu naine':   np.round(sn_imm_f).astype(int),
+            'Muu mees':    np.round(sn_imm_m).astype(int),
+        }, index=pd.Index(np.arange(MAX_AGE), name='Vanus'))
+        st.dataframe(snap_df, use_container_width=True)
