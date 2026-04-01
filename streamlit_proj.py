@@ -208,13 +208,13 @@ def user_input_features(tfr_start):
     _bi = st.sidebar.segmented_control(
         "Baassisseränne (2017–2019 keskmine)", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
-        selection_mode='single', default=100)
-    Baseline_inflow = (_bi if _bi is not None else 100) / 100
+        selection_mode='single', default=0)
+    Baseline_inflow = (_bi if _bi is not None else 0) / 100
     _em = st.sidebar.segmented_control(
         "Baasväljaränne (2017–2019 keskmine)", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
-        selection_mode='single', default=100)
-    Emigration = (_em if _em is not None else 100) / 100
+        selection_mode='single', default=0)
+    Emigration = (_em if _em is not None else 0) / 100
     Annual_immig = st.sidebar.slider(
         "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
     return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr, Baseline_inflow, Emigration, Osc_amp, Osc_cycle
