@@ -19,7 +19,7 @@ def _load_migration_rate_data():
     pop      = fetch(URL_MT_STOCK)
     return emig, baseline, pop
 
-lang = st.radio("", ["ET", "EN"], horizontal=True)
+lang = st.radio("Language", ["ET", "EN"], horizontal=True, label_visibility="hidden")
 
 # --- Header ---
 if lang == 'ET':
