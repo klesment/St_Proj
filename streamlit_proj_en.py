@@ -1,4 +1,5 @@
 # v2 — baseline inflow by nationality (English UI)
+# © 2026 Martin Klesment. Licensed under CC BY-NC 4.0.
 import streamlit as st
 
 st.set_page_config(page_title="Interactive Population Projection")

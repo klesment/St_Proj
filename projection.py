@@ -1,4 +1,5 @@
 # v2 — baseline inflow by nationality
+# © 2026 Martin Klesment. Licensed under CC BY-NC 4.0.
 import numpy as np
 import pandas as pd
 import requests

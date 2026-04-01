@@ -1,3 +1,4 @@
+# © 2026 Martin Klesment. Licensed under CC BY-NC 4.0.
 import streamlit as st
 
 st.title('Andmeallikad')
