@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.patches import Patch, Rectangle
 
 from projection import (
     URL_ASFR, URL_LT, URL_LT_MALE, URL_POP,
@@ -176,7 +178,7 @@ option_map = {2: "▁", 6: "▄", 20: "█"}
 
 def user_input_features(tfr_start):
     target_year = st.sidebar.slider(
-        "Sihtaasta", min_value=BASE_YEAR, max_value=BASE_YEAR + 100, step=1, value=BASE_YEAR)
+        "Sihtaasta", min_value=BASE_YEAR, max_value=BASE_YEAR + 100, step=1, value=2026)
     Years = target_year - BASE_YEAR
     tfr_end = st.sidebar.slider(
         f"Sündimus perioodi lõpus (TFR, {BASE_YEAR} = {tfr_start:.2f})",
@@ -201,12 +203,12 @@ def user_input_features(tfr_start):
     Annual_immig = st.sidebar.slider(
         "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
     _bi = st.sidebar.segmented_control(
-        "Baassisseränne", options=[0, 50, 100],
+        "Baassisseränne (2017–2019 keskmine)", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
         selection_mode='single', default=100)
     Baseline_inflow = (_bi if _bi is not None else 100) / 100
     _em = st.sidebar.segmented_control(
-        "Baasväljaränne", options=[0, 50, 100],
+        "Baasväljaränne (2017–2019 keskmine)", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
         selection_mode='single', default=100)
     Emigration = (_em if _em is not None else 100) / 100
@@ -262,7 +264,7 @@ with col1:
 
     ax.set(ylabel='Last naise kohta', xlabel='Aasta')
     ax.legend()
-    st.caption(f"Sündimuse muutus {BASE_YEAR} - {BASE_YEAR + period}")
+    st.caption(f"Sündimuse muutus {min(tfr_history.keys())} - {BASE_YEAR + period}")
     st.pyplot(fig)
     plt.close(fig)
 
@@ -286,28 +288,57 @@ st.divider()
 
 ages = np.arange(MAX_AGE)
 
+class HandlerSplitPatch(HandlerBase):
+    def __init__(self, color_left, color_right):
+        self.color_left  = color_left
+        self.color_right = color_right
+        super().__init__()
+    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+        r1 = Rectangle((xdescent,            ydescent), width / 2, height, facecolor=self.color_left,  transform=trans)
+        r2 = Rectangle((xdescent + width / 2, ydescent), width / 2, height, facecolor=self.color_right, transform=trans)
+        return [r1, r2]
+
+_C_EST_F, _C_EST_M = '#e05252', '#2e86c1'
+_C_IMM_F, _C_IMM_M = '#e8923a', '#3aae82'
+
 sns.set_style("whitegrid")
 sns.set_context("notebook", font_scale=1)
 fig2, ax2 = plt.subplots(figsize=(10, 8))
 
-ax2.barh(ages,  nat_f, color='#e05252', label='Naised, eesti emakeel')
-ax2.barh(ages, -nat_m, color='#2e86c1', label='Mehed, eesti emakeel')
-ax2.barh(ages,  imm_f, left= nat_f, color='#e8923a', label='Naised, muu emakeel')
-ax2.barh(ages, -imm_m, left=-nat_m, color='#3aae82', label='Mehed, muu emakeel')
+ax2.barh(ages,  nat_f, color=_C_EST_F)
+ax2.barh(ages, -nat_m, color=_C_EST_M)
+ax2.barh(ages,  imm_f, left= nat_f,  color=_C_IMM_F)
+ax2.barh(ages, -imm_m, left=-nat_m, color=_C_IMM_M)
 
 if period > 0:
-    ax2.axhline(period - 0.5, color='black', linewidth=1.2, linestyle='--',
-                label=f'Prognoosipiir (sündinud {BASE_YEAR + 1}–{BASE_YEAR + period})')
+    hline = ax2.axhline(period - 0.5, color='black', linewidth=1.2, linestyle='--')
 
 ax2.set_xlabel('Inimesi vanusrühmas')
 ax2.set_ylabel('Vanus')
 ax2.set_yticks(np.arange(0, MAX_AGE - 10, AGE_TICK_STEP))
 ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{abs(int(x)):,}'))
 ax2.axvline(0, color='black', linewidth=0.8)
-ax2.legend(loc='upper left')
 
-st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
-st.pyplot(fig2, width='stretch')
+h_est = Patch()
+h_muu = Patch()
+legend_handles = [h_est, h_muu]
+legend_labels  = ['Eesti emakeel', 'Muu emakeel']
+legend_handler_map = {
+    h_est: HandlerSplitPatch(_C_EST_M, _C_EST_F),
+    h_muu: HandlerSplitPatch(_C_IMM_M, _C_IMM_F),
+}
+if period > 0:
+    legend_handles.append(hline)
+    legend_labels.append(f'Prognoosipiir\n(s. {BASE_YEAR + 1}–{BASE_YEAR + period})')
+ax2.legend(legend_handles, legend_labels, handler_map=legend_handler_map, loc='upper left')
+
+xlim = ax2.get_xlim()
+ylim = ax2.get_ylim()
+ax2.text(xlim[0] * 0.97, ylim[0] + 1, '← Mehed', ha='left',  va='bottom', fontsize=12, color='#555555')
+ax2.text(xlim[1] * 0.97, ylim[0] + 1, 'Naised →', ha='right', va='bottom', fontsize=12, color='#555555')
+
+st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal, emakeele lõikes  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
+st.pyplot(fig2, use_container_width=True)
 plt.close(fig2)
 
 # --- Non-Estonian summary metrics ---
@@ -418,7 +449,7 @@ r3c.metric(
 # --- Snapshot tables ---
 available_snaps = [yr for yr in (2050, 2075, 2100) if yr in snapshots]
 st.divider()
-st.caption("Rahvastik vanuse järgi")
+st.caption("Rahvastiku vanusjaotus prognoosi läbilõigetes — eelvalitud aastad")
 all_snap_years = [BASE_YEAR] + available_snaps
 all_snap_data  = {BASE_YEAR: (N0_nat_f, N0_nat_m, N0_imm_f, N0_imm_m), **snapshots}
 tabs = st.tabs([str(yr) for yr in all_snap_years])
