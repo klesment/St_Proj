@@ -338,7 +338,7 @@ ax2.text(xlim[0] * 0.97, ylim[0] + 1, '← Mehed', ha='left',  va='bottom', font
 ax2.text(xlim[1] * 0.97, ylim[0] + 1, 'Naised →', ha='right', va='bottom', fontsize=12, color='#555555')
 
 st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal, emakeele lõikes  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
-st.pyplot(fig2, use_container_width=True)
+st.pyplot(fig2, width='stretch')
 plt.close(fig2)
 
 # --- Non-Estonian summary metrics ---
