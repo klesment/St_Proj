@@ -239,7 +239,37 @@ p_size_start = sum(pop['Total'][pop['Year'] == BASE_YEAR])
 p_size_end   = sum(out) + sum(out_male)
 total_births = round(out[0] * (1 + SEX_RATIO_AT_BIRTH))
 
+_lt_f_end = improve_lt(lt_base,      mort_improvement, period) if mort_improvement > 0 and period > 0 else lt_base
+_lt_m_end = improve_lt(lt_male_base, mort_improvement, period) if mort_improvement > 0 and period > 0 else lt_male_base
+qx_f_end  = np.nan_to_num(_lt_f_end.sort_values('Age')['qx'].values[:MAX_AGE])
+qx_m_end  = np.nan_to_num(_lt_m_end.sort_values('Age')['qx'].values[:MAX_AGE])
+qx_f_base = np.nan_to_num(lt_base.sort_values('Age')['qx'].values[:MAX_AGE])
+qx_m_base = np.nan_to_num(lt_male_base.sort_values('Age')['qx'].values[:MAX_AGE])
+total_deaths       = round((out           * qx_f_end).sum()  + (out_male          * qx_m_end).sum())
+total_deaths_start = round((np.array(N0)  * qx_f_base).sum() + (np.array(N0_male) * qx_m_base).sum())
+
+# Net migration: inflow (fixed counts) minus emigration rates × projected population
+inflow_nat_end   = (base_nat_f.sum() + base_nat_m.sum()) * baseline_inflow
+inflow_imm_end   = (base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow + extra_immig
+inflow_total_end = inflow_nat_end + inflow_imm_end
+emig_nat_end     = (nat_f * emig_nat_f).sum() * emigration_scale + (nat_m * emig_nat_m).sum() * emigration_scale
+emig_imm_end     = (imm_f * emig_imm_f).sum() * emigration_scale + (imm_m * emig_imm_m).sum() * emigration_scale
+net_migration_end  = inflow_total_end - emig_nat_end - emig_imm_end
+imm_inflow_pct_end = inflow_imm_end / inflow_total_end * 100 if inflow_total_end > 0 else np.nan
+
+inflow_total_base   = (base_nat_f.sum() + base_nat_m.sum() + base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow
+inflow_imm_base     = (base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow
+emig_nat_base       = ((N0_nat_f * emig_nat_f).sum() + (N0_nat_m * emig_nat_m).sum()) * emigration_scale
+emig_imm_base       = ((N0_imm_f * emig_imm_f).sum() + (N0_imm_m * emig_imm_m).sum()) * emigration_scale
+net_migration_base  = inflow_total_base - emig_nat_base - emig_imm_base
+imm_inflow_pct_base = inflow_imm_base / inflow_total_base * 100 if inflow_total_base > 0 else np.nan
+
 # --- TFR chart + metrics ---
+st.markdown("""
+<style>
+[data-testid="stMetricValue"] { font-size: 1.5rem; }
+</style>
+""", unsafe_allow_html=True)
 col1, col2 = st.columns([1, 1])
 
 with col1:
@@ -269,16 +299,17 @@ with col1:
     plt.close(fig)
 
 with col2:
-    col_a, col_b = st.columns(2)
+    st.caption(f"{BASE_YEAR + period}")
     col_c, col_d = st.columns(2)
-    col_a.metric(f"Rahvaarv (milj.)  {BASE_YEAR + period}",
-                 round(p_size_end / 1_000_000, 3), round(p_size_end - p_size_start), border=False)
-    col_b.metric(f"Sündide arv {BASE_YEAR + period}",
-                 total_births, "", border=False)
-    col_c.metric(f"Eluiga (N) {BASE_YEAR + period}",
+    col_e, col_f = st.columns(2)
+    col_c.metric("Eluiga (N)",
                  round(e0_end, 1), round(e0_end - e0_base, 1), border=False)
-    col_d.metric(f"Eluiga (M) {BASE_YEAR + period}",
+    col_d.metric("Eluiga (M)",
                  round(e0m_end, 1), round(e0m_end - e0m_base, 1), border=False)
+    col_e.metric("Aastane netoränne",
+                 f"{round(net_migration_end):,}", f"{round(net_migration_end - net_migration_base):,}", border=False)
+    col_f.metric("Muu emakeel sisserändest",
+                 f"{imm_inflow_pct_end:.1f}%", f"{imm_inflow_pct_end - imm_inflow_pct_base:.1f}pp", border=False)
 
 # --- Population pyramid ---
 ind_end   = compute_indicators(out, out_male)
@@ -347,12 +378,6 @@ imm_newborn_end = int(round(imm_f[0]       + imm_m[0]))
 imm_total_start = int(round(N0_imm_f.sum() + N0_imm_m.sum()))
 imm_newborn_start = int(round(N0_imm_f[0]  + N0_imm_m[0]))
 
-pyr_col1, pyr_col2, pyr_col3 = st.columns(3)
-pyr_col1.metric(f"Muu emakeel kokku {BASE_YEAR + period}",
-                f"{imm_total_end:,}", imm_total_end - imm_total_start, border=False)
-pyr_col2.metric(f"Muu emakeel vastsündinud {BASE_YEAR + period}",
-                f"{imm_newborn_end:,}", imm_newborn_end - imm_newborn_start, border=False)
-
 # --- Structural indicators ---
 work_pct_end     = ind_end['working_age']  / p_size_end   * 100
 work_pct_start   = ind_start['working_age'] / p_size_start * 100
@@ -375,76 +400,26 @@ imm_school_pct_start = imm_school_start / ind_start['school_age']  * 100 if ind_
 imm_work_pct_start   = imm_work_start   / ind_start['working_age'] * 100 if ind_start['working_age'] > 0 else np.nan
 imm_old_pct_start    = imm_old_start    / ind_start['old_age']     * 100 if ind_start['old_age']     > 0 else np.nan
 
-# Net migration: inflow (fixed counts) minus emigration rates × projected population
-inflow_nat_end   = (base_nat_f.sum() + base_nat_m.sum()) * baseline_inflow
-inflow_imm_end   = (base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow + extra_immig
-inflow_total_end = inflow_nat_end + inflow_imm_end
-emig_nat_end     = (nat_f * emig_nat_f).sum() * emigration_scale + (nat_m * emig_nat_m).sum() * emigration_scale
-emig_imm_end     = (imm_f * emig_imm_f).sum() * emigration_scale + (imm_m * emig_imm_m).sum() * emigration_scale
-net_migration_end  = inflow_total_end - emig_nat_end - emig_imm_end
-imm_inflow_pct_end = inflow_imm_end / inflow_total_end * 100 if inflow_total_end > 0 else np.nan
-
-inflow_total_base   = (base_nat_f.sum() + base_nat_m.sum() + base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow
-inflow_imm_base     = (base_imm_f.sum() + base_imm_m.sum()) * baseline_inflow
-emig_nat_base       = ((N0_nat_f * emig_nat_f).sum() + (N0_nat_m * emig_nat_m).sum()) * emigration_scale
-emig_imm_base       = ((N0_imm_f * emig_imm_f).sum() + (N0_imm_m * emig_imm_m).sum()) * emigration_scale
-net_migration_base  = inflow_total_base - emig_nat_base - emig_imm_base
-imm_inflow_pct_base = inflow_imm_base / inflow_total_base * 100 if inflow_total_base > 0 else np.nan
-
 st.divider()
-r1a, r1b, r1c = st.columns(3)
-r1a.metric(
-    f"Aastane netoränne  {BASE_YEAR + period}",
-    f"{round(net_migration_end):,}",
-    f"{round(net_migration_end - net_migration_base):,}",
-    border=False,
-)
-r1b.metric(
-    f"Muu emakeel sisserändest  {BASE_YEAR + period}",
-    f"{imm_inflow_pct_end:.1f}%",
-    f"{imm_inflow_pct_end - imm_inflow_pct_base:.1f}pp",
-    border=False,
-)
+st.caption(f"Prognoositud absoluutarvud {BASE_YEAR + period}")
 
-r2a, r2b, r2c = st.columns(3)
-r2a.metric(
-    f"Vanus 0–17  {BASE_YEAR + period}",
-    f"{school_pct_end:.1f}%",
-    f"{school_pct_end - school_pct_start:.1f}pp",
-    border=False,
-)
-r2b.metric(
-    f"Vanus 18–64  {BASE_YEAR + period}",
-    f"{work_pct_end:.1f}%",
-    f"{work_pct_end - work_pct_start:.1f}pp",
-    border=False,
-)
-r2c.metric(
-    f"65+  {BASE_YEAR + period}",
-    f"{old_pct_end:.1f}%",
-    f"{old_pct_end - old_pct_start:.1f}pp",
-    border=False,
-)
+r1a, r1b, r1c, r1d = st.columns(4)
+r1a.metric("Rahvaarv kokku",    f"{round(p_size_end):,}", round(p_size_end - p_size_start),        border=False)
+r1b.metric("Muu emakeel kokku", f"{imm_total_end:,}",    imm_total_end - imm_total_start,          border=False)
+r1c.metric("Sündide arv",       f"{total_births:,}",     "",                                       border=False)
+r1d.metric("Surmade arv",       f"{total_deaths:,}",     round(total_deaths - total_deaths_start), border=False)
 
+st.caption("Prognoositud vanusrühmade osakaal kogurahvastikus")
 r3a, r3b, r3c = st.columns(3)
-r3a.metric(
-    f"Muu emakeel 0–17  {BASE_YEAR + period}",
-    f"{imm_school_pct_end:.1f}%",
-    f"{imm_school_pct_end - imm_school_pct_start:.1f}pp",
-    border=False,
-)
-r3b.metric(
-    f"Muu emakeel 18–64  {BASE_YEAR + period}",
-    f"{imm_work_pct_end:.1f}%",
-    f"{imm_work_pct_end - imm_work_pct_start:.1f}pp",
-    border=False,
-)
-r3c.metric(
-    f"Muu emakeel 65+ seas  {BASE_YEAR + period}",
-    f"{imm_old_pct_end:.1f}%",
-    f"{imm_old_pct_end - imm_old_pct_start:.1f}pp",
-    border=False,
-)
+r3a.metric("0–17",  f"{school_pct_end:.1f}%", f"{school_pct_end - school_pct_start:.1f}pp", border=False)
+r3b.metric("18–64", f"{work_pct_end:.1f}%",   f"{work_pct_end - work_pct_start:.1f}pp",     border=False)
+r3c.metric("65+",   f"{old_pct_end:.1f}%",    f"{old_pct_end - old_pct_start:.1f}pp",       border=False)
+
+st.caption("sh eesti emakeel")
+r4a, r4b, r4c = st.columns(3)
+r4a.metric("0–17",  f"{100 - imm_school_pct_end:.1f}%", f"{imm_school_pct_start - imm_school_pct_end:.1f}pp", border=False)
+r4b.metric("18–64", f"{100 - imm_work_pct_end:.1f}%",   f"{imm_work_pct_start - imm_work_pct_end:.1f}pp",     border=False)
+r4c.metric("65+",   f"{100 - imm_old_pct_end:.1f}%",    f"{imm_old_pct_start - imm_old_pct_end:.1f}pp",       border=False)
 
 # --- Snapshot tables ---
 available_snaps = [yr for yr in (2050, 2075, 2100) if yr in snapshots]
