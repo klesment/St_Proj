@@ -593,3 +593,41 @@ try:
     plt.close(fig)
 except Exception:
     pass
+
+# --- Data sources ---
+if lang == 'ET':
+    st.markdown('''
+### Andmeallikad
+
+#### Sündimus ja suremus
+
+- **Human Fertility Database** — vanusepõhised sündimuskordajad (ASFR) ja summaarne sündimuskordaja (TFR): https://www.humanfertility.org/
+- **Human Mortality Database** — naiste ja meeste elutabelid: https://www.mortality.org/
+
+#### Rahvastik ja ränne (Statistikaamet)
+
+- **RL21434** — rahvastik emakeele, soo ja vanuserühma järgi, 2021. aasta rahvaloendus
+- **RVR03** — välistränne soo, vanuserühma ja näitaja järgi (koguränne)
+- **RVR09** — sisserändajad sünniriigi, vanuserühma ja soo järgi
+- **RVR10** — eestlaste välistränne vanuserühma ja soo järgi
+
+Statistikaameti andmed: https://andmed.stat.ee/
+''')
+else:
+    st.markdown('''
+### Data sources
+
+#### Fertility and mortality
+
+- **Human Fertility Database** — age-specific fertility rates (ASFR) and total fertility rate (TFR): https://www.humanfertility.org/
+- **Human Mortality Database** — female and male life tables: https://www.mortality.org/
+
+#### Population and migration (Statistics Estonia)
+
+- **RL21434** — population by mother tongue, sex and age group, 2021 census
+- **RVR03** — international migration by sex, age group and indicator (total migration)
+- **RVR09** — immigrants by country of birth, age group and sex
+- **RVR10** — international migration of Estonians by age group and sex
+
+Statistics Estonia data: https://andmed.stat.ee/
+''')
