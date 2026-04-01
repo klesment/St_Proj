@@ -29,17 +29,17 @@ def load_and_clean():
     asfr = load_data(URL_ASFR).apply(pd.to_numeric, errors='coerce')
 
     lt = load_data(URL_LT)
-    lt.loc[lt['Age'] == OPEN_AGE_SENTINEL, 'Age'] = MAX_AGE
+    lt['Age'] = lt['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
     lt = lt.apply(pd.to_numeric)
     lt.loc[lt['qx'] == 0, 'qx'] = np.nan
 
     lt_male = load_data(URL_LT_MALE)
-    lt_male.loc[lt_male['Age'] == OPEN_AGE_SENTINEL, 'Age'] = MAX_AGE
+    lt_male['Age'] = lt_male['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
     lt_male = lt_male.apply(pd.to_numeric)
     lt_male.loc[lt_male['qx'] == 0, 'qx'] = np.nan
 
     pop = load_data(URL_POP)
-    pop.loc[pop['Age'] == OPEN_AGE_SENTINEL, 'Age'] = MAX_AGE
+    pop['Age'] = pop['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
     pop = pop.apply(pd.to_numeric)
 
     tfr_history = load_tfr_history()
