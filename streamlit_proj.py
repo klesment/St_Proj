@@ -137,6 +137,7 @@ except Exception as e:
         'Andmete laadimine ebaõnnestus. '
         'Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.'
     )
+    st.exception(e)
     st.stop()
 
 lt_base      = lt[lt['Year'] == BASE_YEAR]
@@ -156,11 +157,12 @@ try:
          base_nat_f, base_nat_m, base_imm_f, base_imm_m) = load_immig_data(
             _lt_female=lt_base, _lt_male=lt_male_base
         )
-except Exception:
+except Exception as e:
     st.error(
         'Rändeandmete laadimine ebaõnnestus. '
         'Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.'
     )
+    st.exception(e)
     st.stop()
 
 # Split 2023 population using 2021 census mother-tongue proportions
