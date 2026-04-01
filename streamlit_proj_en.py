@@ -1,7 +1,7 @@
-# v2 — baseline inflow by nationality
+# v2 — baseline inflow by nationality (English UI)
 import streamlit as st
 
-st.set_page_config(page_title="Interaktiivne rahvastikuprognoos")
+st.set_page_config(page_title="Interactive Population Projection")
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -130,12 +130,12 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
 
 # --- Data ---
 try:
-    with st.spinner('Laadin andmeid...'):
+    with st.spinner('Loading data...'):
         asfr, lt, lt_male, pop, tfr_history = load_and_clean()
 except Exception as e:
     st.error(
-        'Andmete laadimine ebaõnnestus. '
-        'Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.'
+        'Failed to load data. '
+        'Please check your internet connection and reload the page.'
     )
     st.stop()
 
@@ -149,7 +149,7 @@ N0_male      = pop_base.Male[0:MAX_AGE].tolist()
 tfr_start    = compute_tfr_start(asfr, BASE_YEAR)
 
 try:
-    with st.spinner('Laadin rändeandmeid...'):
+    with st.spinner('Loading migration data...'):
         (census_est_f, census_est_m, census_oth_f, census_oth_m,
          inflow_dist_f, inflow_dist_m,
          emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
@@ -158,8 +158,8 @@ try:
         )
 except Exception:
     st.error(
-        'Rändeandmete laadimine ebaõnnestus. '
-        'Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.'
+        'Failed to load migration data. '
+        'Please check your internet connection and reload the page.'
     )
     st.stop()
 
@@ -174,46 +174,46 @@ N0_nat_f = np.array(N0)      - N0_imm_f
 N0_nat_m = np.array(N0_male) - N0_imm_m
 
 # --- Sidebar ---
-st.sidebar.markdown('Vali prognoosi eeldused')
+st.sidebar.markdown('Select projection assumptions')
 
 option_map = {2: "▁", 6: "▄", 20: "█"}
 
 def user_input_features(tfr_start):
     target_year = st.sidebar.slider(
-        "Sihtaasta", min_value=BASE_YEAR, max_value=BASE_YEAR + 100, step=1, value=2026)
+        "Target year", min_value=BASE_YEAR, max_value=BASE_YEAR + 100, step=1, value=2026)
     Years = target_year - BASE_YEAR
     tfr_end = st.sidebar.slider(
-        f"Sündimus perioodi lõpus (TFR, {BASE_YEAR} = {tfr_start:.2f})",
+        f"Fertility at end of period (TFR, {BASE_YEAR} = {tfr_start:.2f})",
         min_value=0.5, max_value=3.0, step=0.05, value=float(round(tfr_start * 20) / 20))
     TFR_Change = tfr_end / tfr_start - 1
     _ramp = st.sidebar.segmented_control(
-        "TFR muutuse kiirus",
+        "Speed of TFR change",
         options=option_map.keys(),
         format_func=lambda option: option_map[option],
         selection_mode='single', default=6)
     Ramp = _ramp if _ramp is not None else 6
     Osc_amp = st.sidebar.slider(
-        "TFR kõikumise amplituud", min_value=0.0, max_value=0.5, step=0.05, value=0.0)
+        "TFR oscillation amplitude", min_value=0.0, max_value=0.5, step=0.05, value=0.0)
     Osc_cycle = st.sidebar.slider(
-        "TFR kõikumise periood (a)", min_value=5, max_value=30, step=5, value=10,
+        "TFR oscillation period (yr)", min_value=5, max_value=30, step=5, value=10,
         disabled=(Osc_amp == 0.0))
     MAB_end = st.sidebar.slider(
-        "Keskmine sünnitusvanus perioodi lõpus", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
+        "Mean age at birth at end of period", min_value=MAB_BASE - 5, max_value=MAB_BASE + 5,
         step=0.5, value=MAB_BASE)
     Mort_impr = st.sidebar.slider(
-        "Suremuse langus (%/a)", min_value=0.0, max_value=2.0, step=0.1, value=0.0) / 100
+        "Mortality decline (%/yr)", min_value=0.0, max_value=2.0, step=0.1, value=0.0) / 100
     _bi = st.sidebar.segmented_control(
-        "Baassisseränne (2017–2019 keskmine)", options=[0, 50, 100],
+        "Baseline immigration (2017–2019 average)", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
         selection_mode='single', default=100)
     Baseline_inflow = (_bi if _bi is not None else 100) / 100
     _em = st.sidebar.segmented_control(
-        "Baasväljaränne (2017–2019 keskmine)", options=[0, 50, 100],
+        "Baseline emigration (2017–2019 average)", options=[0, 50, 100],
         format_func=lambda x: f"{x}%",
         selection_mode='single', default=100)
     Emigration = (_em if _em is not None else 100) / 100
     Annual_immig = st.sidebar.slider(
-        "Lisaränne, muu emakeel (inimest/a)", min_value=0, max_value=20_000, step=500, value=0)
+        "Additional immigration, non-Estonian (persons/yr)", min_value=0, max_value=20_000, step=500, value=0)
     return TFR_Change, Ramp, MAB_end, Years, Annual_immig, Mort_impr, Baseline_inflow, Emigration, Osc_amp, Osc_cycle
 
 
@@ -285,18 +285,18 @@ with col1:
     # Actual line: full history from HISTORY_START through last known year
     actual_x = sorted(tfr_history.keys())
     actual_y = [tfr_history[y] for y in actual_x]
-    ax.plot(actual_x, actual_y, linewidth=2.5, color='#2196F3', label='Tegelik')
+    ax.plot(actual_x, actual_y, linewidth=2.5, color='#2196F3', label='Actual')
 
     # Scenario line: starts at last known value and continues into the projection
     if period > last_known_idx + 1:
         proj_years = list(range(BASE_YEAR + 1, BASE_YEAR + 1 + period))
         scenario_x = [last_known_year] + proj_years[last_known_idx + 1:]
         scenario_y = [tfr_history[last_known_year]] + d['tfr'].iloc[last_known_idx + 1:].tolist()
-        ax.plot(scenario_x, scenario_y, linewidth=2.5, linestyle='--', color='#FF5722', label='Stsenaarium')
+        ax.plot(scenario_x, scenario_y, linewidth=2.5, linestyle='--', color='#FF5722', label='Scenario')
 
-    ax.set(ylabel='Last naise kohta', xlabel='Aasta')
+    ax.set(ylabel='Births per woman', xlabel='Year')
     ax.legend()
-    st.caption(f"Sündimuse muutus {min(tfr_history.keys())} - {BASE_YEAR + period}")
+    st.caption(f"Fertility change {min(tfr_history.keys())} – {BASE_YEAR + period}")
     st.pyplot(fig)
     plt.close(fig)
 
@@ -304,13 +304,13 @@ with col2:
     st.caption(f"{BASE_YEAR + period}")
     col_c, col_d = st.columns(2)
     col_e, col_f = st.columns(2)
-    col_c.metric("Eluiga (N)",
+    col_c.metric("Life expectancy (F)",
                  round(e0_end, 1), round(e0_end - e0_base, 1), border=False)
-    col_d.metric("Eluiga (M)",
+    col_d.metric("Life expectancy (M)",
                  round(e0m_end, 1), round(e0m_end - e0m_base, 1), border=False)
-    col_e.metric("Aastane netoränne",
+    col_e.metric("Annual net migration",
                  f"{round(net_migration_end):,}", f"{round(net_migration_end - net_migration_base):,}", border=False)
-    col_f.metric("Eestlaste osa sisserändest",
+    col_f.metric("Estonian share of immigration",
                  f"{100 - imm_inflow_pct_end:.1f}%", f"{imm_inflow_pct_base - imm_inflow_pct_end:.1f}pp", border=False)
 
 # --- Population pyramid ---
@@ -346,8 +346,8 @@ ax2.barh(ages, -imm_m, left=-nat_m, color=_C_IMM_M)
 if period > 0:
     hline = ax2.axhline(period - 0.5, color='black', linewidth=1.2, linestyle='--')
 
-ax2.set_xlabel('Inimesi vanusrühmas')
-ax2.set_ylabel('Vanus')
+ax2.set_xlabel('People per age group')
+ax2.set_ylabel('Age')
 ax2.set_yticks(np.arange(0, MAX_AGE - 10, AGE_TICK_STEP))
 ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{abs(int(x)):,}'))
 ax2.axvline(0, color='black', linewidth=0.8)
@@ -355,22 +355,22 @@ ax2.axvline(0, color='black', linewidth=0.8)
 h_est = Patch()
 h_muu = Patch()
 legend_handles = [h_est, h_muu]
-legend_labels  = ['Eesti emakeel', 'Muu emakeel']
+legend_labels  = ['Estonian mother tongue', 'Other mother tongue']
 legend_handler_map = {
     h_est: HandlerSplitPatch(_C_EST_M, _C_EST_F),
     h_muu: HandlerSplitPatch(_C_IMM_M, _C_IMM_F),
 }
 if period > 0:
     legend_handles.append(hline)
-    legend_labels.append(f'Prognoosipiir\n(s. {BASE_YEAR + 1}–{BASE_YEAR + period})')
+    legend_labels.append(f'Projection boundary\n(b. {BASE_YEAR + 1}–{BASE_YEAR + period})')
 ax2.legend(legend_handles, legend_labels, handler_map=legend_handler_map, loc='upper left')
 
 xlim = ax2.get_xlim()
 ylim = ax2.get_ylim()
-ax2.text(xlim[0] * 0.97, ylim[0] + 1, '← Mehed', ha='left',  va='bottom', fontsize=12, color='#555555')
-ax2.text(xlim[1] * 0.97, ylim[0] + 1, 'Naised →', ha='right', va='bottom', fontsize=12, color='#555555')
+ax2.text(xlim[0] * 0.97, ylim[0] + 1, '← Men',   ha='left',  va='bottom', fontsize=12, color='#555555')
+ax2.text(xlim[1] * 0.97, ylim[0] + 1, 'Women →', ha='right', va='bottom', fontsize=12, color='#555555')
 
-st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal, emakeele lõikes  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
+st.caption(f"Population pyramid {BASE_YEAR + period}, by mother tongue  |  Dashed line separates data-based and projected cohorts")
 st.pyplot(fig2, width='stretch')
 plt.close(fig2)
 
@@ -403,21 +403,21 @@ imm_work_pct_start   = imm_work_start   / ind_start['working_age'] * 100 if ind_
 imm_old_pct_start    = imm_old_start    / ind_start['old_age']     * 100 if ind_start['old_age']     > 0 else np.nan
 
 st.divider()
-st.caption(f"Prognoositud absoluutarvud {BASE_YEAR + period}")
+st.caption(f"Projected absolute figures {BASE_YEAR + period}")
 
 r1a, r1b, r1c, r1d = st.columns(4)
-r1a.metric("Rahvaarv kokku",    f"{round(p_size_end):,}", round(p_size_end - p_size_start),        border=False)
-r1b.metric("Muu emakeel kokku", f"{imm_total_end:,}",    imm_total_end - imm_total_start,          border=False)
-r1c.metric("Sündide arv",       f"{total_births:,}",     "",                                       border=False)
-r1d.metric("Surmade arv",       f"{total_deaths:,}",     round(total_deaths - total_deaths_start), border=False)
+r1a.metric("Total population",        f"{round(p_size_end):,}", round(p_size_end - p_size_start),        border=False)
+r1b.metric("Other mother tongue",     f"{imm_total_end:,}",    imm_total_end - imm_total_start,          border=False)
+r1c.metric("Births",                  f"{total_births:,}",     "",                                       border=False)
+r1d.metric("Deaths",                  f"{total_deaths:,}",     round(total_deaths - total_deaths_start), border=False)
 
-st.caption("Prognoositud vanusrühmade osakaal kogurahvastikus")
+st.caption("Projected age group shares in total population")
 r3a, r3b, r3c = st.columns(3)
 r3a.metric("0–17",  f"{school_pct_end:.1f}%", f"{school_pct_end - school_pct_start:.1f}pp", border=False)
 r3b.metric("18–64", f"{work_pct_end:.1f}%",   f"{work_pct_end - work_pct_start:.1f}pp",     border=False)
 r3c.metric("65+",   f"{old_pct_end:.1f}%",    f"{old_pct_end - old_pct_start:.1f}pp",       border=False)
 
-st.caption("sh eesti emakeel")
+st.caption("of which Estonian mother tongue")
 r4a, r4b, r4c = st.columns(3)
 r4a.metric("0–17",  f"{100 - imm_school_pct_end:.1f}%", f"{imm_school_pct_start - imm_school_pct_end:.1f}pp", border=False)
 r4b.metric("18–64", f"{100 - imm_work_pct_end:.1f}%",   f"{imm_work_pct_start - imm_work_pct_end:.1f}pp",     border=False)
@@ -426,7 +426,7 @@ r4c.metric("65+",   f"{100 - imm_old_pct_end:.1f}%",    f"{imm_old_pct_start - i
 # --- Snapshot tables ---
 available_snaps = [yr for yr in (2050, 2075, 2100) if yr in snapshots]
 st.divider()
-st.caption("Rahvastiku vanusjaotus prognoosi läbilõigetes — eelvalitud aastad")
+st.caption("Population age distribution at projection snapshots — pre-selected years")
 all_snap_years = [BASE_YEAR] + available_snaps
 all_snap_data  = {BASE_YEAR: (N0_nat_f, N0_nat_m, N0_imm_f, N0_imm_m), **snapshots}
 tabs = st.tabs([str(yr) for yr in all_snap_years])
@@ -434,9 +434,9 @@ for tab, yr in zip(tabs, all_snap_years):
     with tab:
         sn_nat_f, sn_nat_m, sn_imm_f, sn_imm_m = all_snap_data[yr]
         snap_df = pd.DataFrame({
-            'Eesti naine': np.round(sn_nat_f).astype(int),
-            'Eesti mees':  np.round(sn_nat_m).astype(int),
-            'Muu naine':   np.round(sn_imm_f).astype(int),
-            'Muu mees':    np.round(sn_imm_m).astype(int),
-        }, index=pd.Index(np.arange(MAX_AGE), name='Vanus'))
+            'Estonian F': np.round(sn_nat_f).astype(int),
+            'Estonian M': np.round(sn_nat_m).astype(int),
+            'Other F':    np.round(sn_imm_f).astype(int),
+            'Other M':    np.round(sn_imm_m).astype(int),
+        }, index=pd.Index(np.arange(MAX_AGE), name='Age'))
         st.dataframe(snap_df, width='stretch')
