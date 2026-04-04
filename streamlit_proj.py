@@ -6,7 +6,6 @@ st.set_page_config(page_title="Interaktiivne rahvastikuprognoos")
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from matplotlib.legend_handler import HandlerBase
 from matplotlib.patches import Patch, Rectangle
 
@@ -278,8 +277,11 @@ st.markdown("""
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    sns.set_style("whitegrid")
-    sns.set_context("notebook", font_scale=2)
+    plt.rcParams.update({
+        "axes.facecolor": "white", "axes.grid": True, "grid.color": "#cccccc",
+        "font.size": 20, "axes.titlesize": 24, "axes.labelsize": 20,
+        "xtick.labelsize": 20, "ytick.labelsize": 20,
+    })
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
 
     last_known_year = max(tfr_history.keys())
@@ -337,8 +339,11 @@ class HandlerSplitPatch(HandlerBase):
 _C_EST_F, _C_EST_M = '#e05252', '#2e86c1'
 _C_IMM_F, _C_IMM_M = '#e8923a', '#3aae82'
 
-sns.set_style("whitegrid")
-sns.set_context("notebook", font_scale=1)
+plt.rcParams.update({
+    "axes.facecolor": "white", "axes.grid": True, "grid.color": "#cccccc",
+    "font.size": 10, "axes.titlesize": 12, "axes.labelsize": 10,
+    "xtick.labelsize": 10, "ytick.labelsize": 10,
+})
 fig2, ax2 = plt.subplots(figsize=(10, 8))
 
 ax2.barh(ages,  nat_f, color=_C_EST_F)
