@@ -1,11 +1,12 @@
 # v2 — baseline inflow by nationality
 # © 2026 Martin Klesment. Licensed under CC BY-NC 4.0.
+import streamlit as st
+st.set_page_config(page_title="Metoodika | Eesti rahvastikuprognoos 2025–2100")
 import io
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import requests
-import streamlit as st
 
 from projection import URL_MT_STOCK, URL_EMIG_RATES, URL_IMMIG_BASELINE
 

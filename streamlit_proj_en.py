@@ -3,10 +3,6 @@
 import streamlit as st
 
 st.set_page_config(page_title="Estonia Population Projection 2025–2100 | Interactive Simulation")
-st.markdown(
-    '<meta name="description" content="Interactive tool for projecting Estonia\'s population to 2100. Adjust fertility, life expectancy, and migration to see how they affect total population, age structure, and dependency ratios.">',
-    unsafe_allow_html=True,
-)
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

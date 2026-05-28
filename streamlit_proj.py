@@ -3,10 +3,6 @@
 import streamlit as st
 
 st.set_page_config(page_title="Eesti rahvastikuprognoos 2025–2100 | Interaktiivne simulatsioon")
-st.markdown(
-    '<meta name="description" content="Interaktiivne tööriist Eesti rahvastiku prognoosimiseks aastani 2100. Muuda sündimust, oodatavat eluiga ja rännet ning vaata, kuidas need mõjutavad rahvaarvu, vanusestruktuuri ja sõltuvusmäärasid.">',
-    unsafe_allow_html=True,
-)
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
