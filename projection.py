@@ -31,7 +31,7 @@ RAMP_SHAPE          = 5       # fixed shape parameter for Gompertz TFR ramp
 OPEN_AGE_SENTINEL   = '110+'  # string value replaced during data cleaning
 
 # TFR values not yet in the data file — override the ramp for those years
-KNOWN_TFR     = {2024: 1.18, 2025: 1.18}
+KNOWN_TFR     = {2024: 1.18, 2025: 1.16}
 HISTORY_START = 2010   # first year shown on the TFR chart
 
 # Age range boundaries (inclusive lower, exclusive upper)

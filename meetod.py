@@ -191,7 +191,7 @@ summaarse sündimuskordaja (TFR), tuleb TFR esmalt teisendada vanuspõhisteks ko
 kasutame Gamma-mudelit (vt allpool). TFR muutus toimub Gompertzi S-kõvera kujuliselt — muutus
 kiireneb esmalt ja aeglustub perioodi lõpuks. Muutuse kiiruse saab kasutaja ise valida.
 
-Aastate 2024 ja 2025 tegelikud TFR väärtused (mõlemal 1,18) on mudelisse fikseeritud.
+Aasta 2024 tegelik TFR väärtus (1,18) ja aasta 2025 tegelik TFR väärtus (1,16) on mudelisse fikseeritud.
 Kasutaja valitud stsenaarium rakendub alates 2026. aastast.
 
 Lisaks saab kasutaja aktiveerida **TFR kõikumise** platoo ümber: sinusoidaalne komponent
@@ -206,7 +206,7 @@ rate (TFR), TFR must first be converted to age-specific rates. This is done usin
 (see below). The TFR change follows a Gompertz S-curve — the change initially accelerates and then
 slows towards the end of the period. The speed of change can be selected by the user.
 
-The observed TFR values for 2024 and 2025 (both 1.18) are fixed in the model.
+The observed TFR values for 2024 (1.18) and 2025 (1.16) are fixed in the model.
 The user-selected scenario applies from 2026 onwards.
 
 The user can also activate **TFR oscillation** around the plateau: a sinusoidal component appears
