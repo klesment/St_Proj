@@ -31,7 +31,7 @@ streamlit run entry.py
 | `SEX_RATIO_AT_BIRTH` | 1.05 | Male births per female birth |
 | `RADIX` | 200000 | Life table radix (l₀) |
 | `RAMP_SHAPE` | 5 | Gompertz shape for TFR ramp |
-| `KNOWN_TFR` | `{2024: 1.18, 2025: 1.18}` | Hardcoded observed TFR values |
+| `KNOWN_TFR` | `{2024: 1.18, 2025: 1.16}` | Hardcoded observed TFR values |
 | `HISTORY_START` | 2010 | First year shown on TFR chart |
 | `AGE_WORK_MIN/MAX` | 18 / 65 | Working-age bounds |
 | `AGE_SCHOOL_MIN/MAX` | 0 / 18 | Child age bounds (ages 0–17) |
@@ -60,7 +60,7 @@ streamlit run entry.py
 ## Model Logic
 
 ### Female projection
-1. `build_scenario_df()` — TFR path via Gompertz ramp, known years overridden
+1. `build_scenario_df()` — TFR path: known years fixed, Gompertz ramp from the last known TFR to the target
 2. `asfr_gamma()` — TFR + MAB → age-specific fertility (Gamma model)
 3. `build_leslie_base()` + `leslie()` — build one Leslie matrix per year
 4. `project_both_sexes()` — iterate over projection years
@@ -122,7 +122,7 @@ project_both_sexes(
 `@st.cache_data` on `load_and_clean()`, `load_immig_data()`, and `run_projection()`. The `_lt_female`, `_lt_male` parameters are prefixed with `_` to exclude DataFrames from the cache key.
 
 ## User Inputs (Sidebar)
-- TFR at end of period (absolute value, slider 0.5–3.0, default = base year TFR)
+- TFR at end of period (absolute value, slider 0.5–3.0, default = last known TFR)
 - Ramp speed: ▁ / ▄ / █ (Gompertz shape 5/6/8)
 - Mean age at birth (MAB) at end of period
 - Projection length: 0–100 years in 5-year steps

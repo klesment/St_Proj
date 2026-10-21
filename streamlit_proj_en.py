@@ -14,7 +14,7 @@ from projection import (
     BASE_YEAR, MAB_BASE, SD_MAB_BASE, MAX_AGE, OPEN_AGE_SENTINEL, SEX_RATIO_AT_BIRTH,
     AGE_SCHOOL_MIN, AGE_SCHOOL_MAX, AGE_WORK_MIN, AGE_WORK_MAX, AGE_OLD_MIN,
     KNOWN_TFR,
-    load_data, load_tfr_history, compute_tfr_start, build_scenario_df,
+    load_data, load_tfr_history, compute_tfr_start, last_known_tfr, build_scenario_df,
     asfr_gamma, build_leslie_base, leslie, build_male_survival, improve_lt,
     load_mt_stock, load_immig_inflow_dist, load_emig_rates, load_immig_baseline,
     build_immig_vectors, project_both_sexes, compute_indicators,
@@ -147,6 +147,7 @@ e0m_base     = lt_male_base['Tx'].iloc[0] / lt_male_base['lx'].iloc[0]
 N0           = pop_base.Female[0:MAX_AGE].tolist()
 N0_male      = pop_base.Male[0:MAX_AGE].tolist()
 tfr_start    = compute_tfr_start(asfr, BASE_YEAR)
+tfr_last_year, tfr_last = last_known_tfr(tfr_start)
 
 try:
     with st.spinner('Loading migration data...'):
@@ -183,8 +184,8 @@ def user_input_features(tfr_start):
         "Target year", min_value=BASE_YEAR, max_value=BASE_YEAR + 100, step=1, value=2026)
     Years = target_year - BASE_YEAR
     tfr_end = st.sidebar.slider(
-        f"Fertility at end of period (TFR, {BASE_YEAR} = {tfr_start:.2f})",
-        min_value=0.5, max_value=3.0, step=0.05, value=float(round(tfr_start * 20) / 20))
+        f"Fertility at end of period (TFR, {tfr_last_year} = {tfr_last:.2f})",
+        min_value=0.5, max_value=3.0, step=0.05, value=float(round(tfr_last * 20) / 20))
     TFR_Change = tfr_end / tfr_start - 1
     _ramp = st.sidebar.segmented_control(
         "Speed of TFR change",
@@ -313,8 +314,13 @@ with col2:
                  round(e0m_end, 1), round(e0m_end - e0m_base, 1), border=False)
     col_e.metric("Annual net migration",
                  f"{round(net_migration_end):,}", f"{round(net_migration_end - net_migration_base):,}", border=False)
-    col_f.metric("Estonian share of immigration",
-                 f"{100 - imm_inflow_pct_end:.1f}%", f"{imm_inflow_pct_base - imm_inflow_pct_end:.1f}pp", border=False)
+    if np.isnan(imm_inflow_pct_end):   # no immigration in the scenario
+        est_share, est_share_delta = "–", None
+    else:
+        est_share       = f"{100 - imm_inflow_pct_end:.1f}%"
+        est_share_delta = (None if np.isnan(imm_inflow_pct_base)
+                           else f"{imm_inflow_pct_base - imm_inflow_pct_end:.1f}pp")
+    col_f.metric("Estonian share of immigration", est_share, est_share_delta, border=False)
 
 # --- Population pyramid ---
 ind_end   = compute_indicators(out, out_male)

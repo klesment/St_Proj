@@ -77,17 +77,35 @@ def ramp_fun(tfr_chng, speed, pr_per, osc_amp=0.0, osc_cycle=10):
     return 1 + tfr_chng * g + osc
 
 
+def last_known_tfr(tfr_base):
+    """Latest observed (year, TFR): the last KNOWN_TFR entry, else the base year value."""
+    if KNOWN_TFR:
+        year = max(KNOWN_TFR)
+        return year, KNOWN_TFR[year]
+    return BASE_YEAR, tfr_base
+
+
 def build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period, osc_amp=0.0, osc_cycle=10):
-    d = pd.DataFrame({
-        'tfr':    tfr_start * ramp_fun(tfr_change, ramp_speed, period, osc_amp, osc_cycle),
+    """
+    Yearly TFR/MAB path. Years in KNOWN_TFR keep their observed values; the
+    ramp starts from the last observed TFR and reaches tfr_start * (1 + tfr_change)
+    in the final projection year.
+    """
+    last_year, tfr_last = last_known_tfr(tfr_start)
+    n_known = min(last_year - BASE_YEAR, period)  # rows fixed to observed values
+    tfr = np.full(period, tfr_start, dtype=float)
+    for year, value in KNOWN_TFR.items():
+        idx = year - BASE_YEAR - 1  # row 0 = first projection year (BASE_YEAR + 1)
+        if 0 <= idx < period:
+            tfr[idx] = value
+    if period > n_known:
+        ramp_change = tfr_start * (1 + tfr_change) / tfr_last - 1
+        tfr[n_known:] = tfr_last * ramp_fun(ramp_change, ramp_speed, period - n_known, osc_amp, osc_cycle)
+    return pd.DataFrame({
+        'tfr':    tfr,
         'mab':    np.linspace(MAB_BASE, mab_stop, period),
         'sd_mab': np.full(period, SD_MAB_BASE),
     })
-    for year, tfr in KNOWN_TFR.items():
-        idx = year - BASE_YEAR - 1  # row 0 = first projection year (BASE_YEAR + 1)
-        if 0 <= idx < period:
-            d.loc[idx, 'tfr'] = tfr
-    return d
 
 
 def asfr_gamma(tfr, mab, sd_mab):
