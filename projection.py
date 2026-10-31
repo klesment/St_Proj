@@ -8,10 +8,9 @@ from scipy.special import gamma
 from scipy.interpolate import PchipInterpolator
 
 # Data URLs
-URL_ASFR = 'https://raw.githubusercontent.com/klesment/PopProj/main/ESTasfrRR_2023.txt'
 URL_LT        = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Female_2024.txt'
 URL_LT_MALE   = 'https://raw.githubusercontent.com/klesment/PopProj/main/LT_Male_2024.txt'
-URL_POP     = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population_2025.txt'
+URL_POP     = 'https://raw.githubusercontent.com/klesment/PopProj/main/Population_2025_RV0212.txt'
 URL_TFRMAB  = 'https://raw.githubusercontent.com/klesment/PopProj/main/EST_TFRMAB_2023.txt'
 URL_MT_STOCK       = 'https://raw.githubusercontent.com/klesment/PopProj/main/mt_stock_2021.csv'
 URL_IMMIG_INFLOW   = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_inflow_dist.csv'
@@ -19,7 +18,8 @@ URL_EMIG_RATES     = 'https://raw.githubusercontent.com/klesment/PopProj/main/em
 URL_IMMIG_BASELINE = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_baseline.csv'
 
 # Demographic constants
-BASE_YEAR           = 2023
+BASE_YEAR           = 2025    # projection starts from the 1 January population of this year
+LT_YEAR             = 2024    # life table year (latest available)
 MAB_BASE            = 30.62   # mean age at birth in base year
 SD_MAB_BASE         = 5.62    # std dev of mean age at birth in base year
 MAX_AGE             = 110     # open-interval upper age group
@@ -30,7 +30,8 @@ RADIX               = 200000  # life table radix (l0)
 RAMP_SHAPE          = 5       # fixed shape parameter for Gompertz TFR ramp
 OPEN_AGE_SENTINEL   = '110+'  # string value replaced during data cleaning
 
-# TFR values not yet in the data file — override the ramp for those years
+# Observed TFR not yet in the TFR/MAB history file. Shown on the TFR chart; years after
+# BASE_YEAR are also fixed in the projection. The BASE_YEAR value is the starting TFR.
 KNOWN_TFR     = {2024: 1.18, 2025: 1.16}
 HISTORY_START = 2010   # first year shown on the TFR chart
 
@@ -63,10 +64,6 @@ def load_tfr_history():
     history = dict(zip(df['Year1'].astype(int), df['TFR'].astype(float)))
     history.update(KNOWN_TFR)   # add/override with values not yet in the file
     return history
-
-
-def compute_tfr_start(asfr_df, year):
-    return round(sum(asfr_df['ASFR'][asfr_df['Year'] == year]), 2)
 
 
 def ramp_fun(tfr_chng, speed, pr_per, osc_amp=0.0, osc_cycle=10):

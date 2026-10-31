@@ -10,11 +10,11 @@ from matplotlib.legend_handler import HandlerBase
 from matplotlib.patches import Patch, Rectangle
 
 from projection import (
-    URL_ASFR, URL_LT, URL_LT_MALE, URL_POP,
-    BASE_YEAR, MAB_BASE, SD_MAB_BASE, MAX_AGE, OPEN_AGE_SENTINEL, SEX_RATIO_AT_BIRTH,
+    URL_LT, URL_LT_MALE, URL_POP,
+    BASE_YEAR, LT_YEAR, MAB_BASE, SD_MAB_BASE, MAX_AGE, OPEN_AGE_SENTINEL, SEX_RATIO_AT_BIRTH,
     AGE_SCHOOL_MIN, AGE_SCHOOL_MAX, AGE_WORK_MIN, AGE_WORK_MAX, AGE_OLD_MIN,
     KNOWN_TFR,
-    load_data, load_tfr_history, compute_tfr_start, last_known_tfr, build_scenario_df,
+    load_data, load_tfr_history, last_known_tfr, build_scenario_df,
     asfr_gamma, build_leslie_base, leslie, build_male_survival, improve_lt,
     load_mt_stock, load_immig_inflow_dist, load_emig_rates, load_immig_baseline,
     build_immig_vectors, project_both_sexes, compute_indicators,
@@ -26,8 +26,6 @@ AGE_TICK_STEP = 5
 
 @st.cache_data
 def load_and_clean():
-    asfr = load_data(URL_ASFR).apply(pd.to_numeric, errors='coerce')
-
     lt = load_data(URL_LT)
     lt['Age'] = lt['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
     lt = lt.apply(pd.to_numeric)
@@ -44,7 +42,7 @@ def load_and_clean():
 
     tfr_history = load_tfr_history()
 
-    return asfr, lt, lt_male, pop, tfr_history
+    return lt, lt_male, pop, tfr_history
 
 
 @st.cache_data
@@ -131,7 +129,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
 # --- Data ---
 try:
     with st.spinner('Loading data...'):
-        asfr, lt, lt_male, pop, tfr_history = load_and_clean()
+        lt, lt_male, pop, tfr_history = load_and_clean()
 except Exception as e:
     st.error(
         'Failed to load data. '
@@ -139,14 +137,14 @@ except Exception as e:
     )
     st.stop()
 
-lt_base      = lt[lt['Year'] == BASE_YEAR]
-lt_male_base = lt_male[lt_male['Year'] == BASE_YEAR]
+lt_base      = lt[lt['Year'] == LT_YEAR]
+lt_male_base = lt_male[lt_male['Year'] == LT_YEAR]
 pop_base     = pop[pop['Year'] == BASE_YEAR]
 e0_base      = lt_base['Tx'].iloc[0]      / lt_base['lx'].iloc[0]
 e0m_base     = lt_male_base['Tx'].iloc[0] / lt_male_base['lx'].iloc[0]
 N0           = pop_base.Female[0:MAX_AGE].tolist()
 N0_male      = pop_base.Male[0:MAX_AGE].tolist()
-tfr_start    = compute_tfr_start(asfr, BASE_YEAR)
+tfr_start    = tfr_history[BASE_YEAR]
 tfr_last_year, tfr_last = last_known_tfr(tfr_start)
 
 try:

@@ -11,6 +11,7 @@ st.markdown('''
 
 ### Rahvastik ja ränne (Statistikaamet)
 
+- **RV0212** — rahvastik soo ja vanuse järgi, 1. jaanuar
 - **RL21434** — rahvastik emakeele, soo ja vanuserühma järgi, 2021. aasta rahvaloendus
 - **RVR03** — välistränne soo, vanuserühma ja näitaja järgi (koguränne)
 - **RVR09** — sisserändajad sünniriigi, vanuserühma ja soo järgi

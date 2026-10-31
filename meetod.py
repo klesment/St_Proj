@@ -191,7 +191,7 @@ summaarse sündimuskordaja (TFR), tuleb TFR esmalt teisendada vanuspõhisteks ko
 kasutame Gamma-mudelit (vt allpool). TFR muutus toimub Gompertzi S-kõvera kujuliselt — muutus
 kiireneb esmalt ja aeglustub perioodi lõpuks. Muutuse kiiruse saab kasutaja ise valida.
 
-Aasta 2024 tegelik TFR väärtus (1,18) ja aasta 2025 tegelik TFR väärtus (1,16) on mudelisse fikseeritud.
+Prognoosi lähtetase on 2025. aasta tegelik TFR (1,16).
 Kasutaja valitud stsenaarium rakendub alates 2026. aastast.
 
 Lisaks saab kasutaja aktiveerida **TFR kõikumise** platoo ümber: sinusoidaalne komponent
@@ -206,7 +206,7 @@ rate (TFR), TFR must first be converted to age-specific rates. This is done usin
 (see below). The TFR change follows a Gompertz S-curve — the change initially accelerates and then
 slows towards the end of the period. The speed of change can be selected by the user.
 
-The observed TFR values for 2024 (1.18) and 2025 (1.16) are fixed in the model.
+The starting level is the observed 2025 TFR (1.16).
 The user-selected scenario applies from 2026 onwards.
 
 The user can also activate **TFR oscillation** around the plateau: a sinusoidal component appears
@@ -279,7 +279,7 @@ seda raskem on seda edasi vähendada.
 Igal prognoosiaastal arvutatakse muudetud $m_x$ põhjal uus elutabel ($q_x$, $l_x$, $L_x$, $T_x$)
 ning selle põhjal uus Leslie maatriks. Nii naiste kui meeste suremus langeb sama määraga.
 
-Kui langumäär on 0%, jääb suremus kogu perioodi vältel 2023. aasta tasemele.
+Kui langumäär on 0%, jääb suremus kogu perioodi vältel 2024. aasta tasemele (viimane avaldatud elutabel).
 ''')
 else:
     st.markdown(r'''
@@ -299,7 +299,7 @@ level already achieved, the harder it is to reduce it further.
 Each projection year, a new life table ($q_x$, $l_x$, $L_x$, $T_x$) is computed from the adjusted
 $m_x$, and from it a new Leslie matrix. Both female and male mortality decline at the same rate.
 
-If the decline rate is 0%, mortality remains at the 2023 level throughout the period.
+If the decline rate is 0%, mortality remains at the 2024 level (latest published life table) throughout the period.
 ''')
 
 # --- Base data ---
@@ -307,12 +307,12 @@ if lang == 'ET':
     st.markdown('''
 ### Alusandmed
 
-Prognoosimisel võetakse aluseks 2023. aasta seis. Selle aasta kohta on mudelis kasutatud järgmisi andmeid:
+Prognoosimisel võetakse aluseks rahvastik 1. jaanuari 2025 seisuga. Mudelis on kasutatud järgmisi andmeid:
 
-- rahvastiku suurus 1-aastaste vanuserühmade kaupa (eraldi mehed ja naised)
-- naiste vanusepõhised suremuskordajad (elutabelist)
-- meeste vanusepõhised suremuskordajad (elutabelist)
-- vanusespetsiifilised sündimuskordajad 1-aastaste vanuserühmade kaupa
+- rahvastiku suurus 1-aastaste vanuserühmade kaupa (eraldi mehed ja naised), 1. jaanuar 2025
+- naiste vanusepõhised suremuskordajad (2024. aasta elutabelist)
+- meeste vanusepõhised suremuskordajad (2024. aasta elutabelist)
+- summaarne sündimuskordaja 2025. aastal
 - keskmine ema vanus sünnihetkel ja selle standardhälve
 
 Andmeallikad on toodud lehel *Andmeallikad*.
@@ -321,12 +321,12 @@ else:
     st.markdown('''
 ### Base data
 
-The projection uses 2023 as the base year. The following data are used for that year:
+The projection starts from the population on 1 January 2025. The following data are used:
 
-- population size by single-year age groups (men and women separately)
-- female age-specific mortality rates (from the life table)
-- male age-specific mortality rates (from the life table)
-- age-specific fertility rates by single-year age groups
+- population size by single-year age groups (men and women separately), 1 January 2025
+- female age-specific mortality rates (from the 2024 life table)
+- male age-specific mortality rates (from the 2024 life table)
+- total fertility rate in 2025
 - mean age of mother at birth and its standard deviation
 
 Data sources are listed on the *Data sources* page.
@@ -340,8 +340,8 @@ if lang == 'ET':
 Mudel eristab kaht rahvastikurühma **emakeele** alusel: eesti emakeelega ja muu emakeelega rahvastik.
 
 **Algjaotus.** Rühmade algsuurus tuleneb 2021. aasta rahvaloendusest (tabel RL21434). Loenduse
-emakeele proportsioonid kantakse üle 2023. aasta rahvastikuandmetele, nii et mõlema rühma suurus
-on kooskõlas 2023. aasta kogurahvastikuga.
+emakeele proportsioonid kantakse üle 2025. aasta rahvastikuandmetele, nii et mõlema rühma suurus
+on kooskõlas 2025. aasta kogurahvastikuga.
 
 **Laste emakeel** järgib ema emakeelt: eesti emakeelega emade lapsed lisatakse eesti emakeelega
 rühma ja muu emakeelega emade lapsed muu emakeelega rühma.
@@ -376,8 +376,8 @@ The model distinguishes two population groups by **mother tongue**: Estonian mot
 mother tongue.
 
 **Initial distribution.** The initial size of each group is derived from the 2021 census (table
-RL21434). The census mother-tongue proportions are applied to the 2023 population data so that both
-groups are consistent with the 2023 total population.
+RL21434). The census mother-tongue proportions are applied to the 2025 population data so that both
+groups are consistent with the 2025 total population.
 
 **Children's mother tongue** follows the mother's: children of Estonian mother-tongue mothers are
 added to the Estonian group, and children of other mother-tongue mothers to the other group.
@@ -608,6 +608,7 @@ if lang == 'ET':
 
 #### Rahvastik ja ränne (Statistikaamet)
 
+- **RV0212** — rahvastik soo ja vanuse järgi, 1. jaanuar
 - **RL21434** — rahvastik emakeele, soo ja vanuserühma järgi, 2021. aasta rahvaloendus
 - **RVR03** — välistränne soo, vanuserühma ja näitaja järgi (koguränne)
 - **RVR09** — sisserändajad sünniriigi, vanuserühma ja soo järgi
@@ -626,6 +627,7 @@ else:
 
 #### Population and migration (Statistics Estonia)
 
+- **RV0212** — population by sex and age, 1 January
 - **RL21434** — population by mother tongue, sex and age group, 2021 census
 - **RVR03** — international migration by sex, age group and indicator (total migration)
 - **RVR09** — immigrants by country of birth, age group and sex
