@@ -27,7 +27,7 @@ streamlit run entry.py
 | `BASE_YEAR` | 2025 | Projection base year (1 January population) |
 | `LT_YEAR` | 2024 | Life table year (latest available) |
 | `MAX_AGE` | 110 | Open age group upper bound |
-| `MAB_BASE` | 30.62 | Mean age at birth (base year) |
+| `MAB_BASE` | 31.08 | Mean age at birth, 2023 (HFD; latest available) |
 | `SD_MAB_BASE` | 5.62 | Std dev of MAB |
 | `SEX_RATIO_AT_BIRTH` | 1.05 | Male births per female birth |
 | `RADIX` | 200000 | Life table radix (l₀) |

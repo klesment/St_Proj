@@ -20,7 +20,7 @@ URL_IMMIG_BASELINE = 'https://raw.githubusercontent.com/klesment/PopProj/main/im
 # Demographic constants
 BASE_YEAR           = 2025    # projection starts from the 1 January population of this year
 LT_YEAR             = 2024    # life table year (latest available)
-MAB_BASE            = 30.62   # mean age at birth in base year
+MAB_BASE            = 31.08   # mean age at birth, 2023 (HFD; latest available)
 SD_MAB_BASE         = 5.62    # std dev of mean age at birth in base year
 MAX_AGE             = 110     # open-interval upper age group
 ASFR_FERTILE_MIN    = 12      # youngest fertile age in gamma model
