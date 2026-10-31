@@ -28,7 +28,7 @@ streamlit run entry.py
 | `LT_YEAR` | 2024 | Life table year (latest available) |
 | `MAX_AGE` | 110 | Open age group upper bound |
 | `MAB_BASE` | 31.08 | Mean age at birth, 2023 (HFD; latest available) |
-| `SD_MAB_BASE` | 5.62 | Std dev of MAB |
+| `SD_MAB_BASE` | 5.78 | Std dev of age at birth, 2023 (from HFD ASFR) |
 | `SEX_RATIO_AT_BIRTH` | 1.05 | Male births per female birth |
 | `RADIX` | 200000 | Life table radix (l₀) |
 | `RAMP_SHAPE` | 5 | Gompertz shape for TFR ramp |
