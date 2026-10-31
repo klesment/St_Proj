@@ -1,15 +1,18 @@
 """
-One-time script to fetch labour market data from Statistics Estonia for the
-productivity page.
+One-time script to fetch labour market data from Statistics Estonia and
+Eurostat for the productivity page.
 
 Outputs:
   emp_rates_2025.csv        -- employment rate (%) by sex and 5-year age group
                                15-19 … 70-74, 75+ (TT330, labour force survey)
   productivity_growth.csv   -- annual real change (%) of labour productivity
                                per employed person (RAL0013, national accounts)
+  eu_productivity.csv       -- Estonia's labour productivity per employed person,
+                               % of EU27 (PPS, Eurostat tesem160), and EU27 real
+                               productivity growth per person (%, nama_10_lp_ulc)
 
 Usage: python fetch_labour_data.py [year]   (default 2025)
-Commit both CSVs to the data repo (klesment/PopProj).
+Commit the CSVs to the data repo (klesment/PopProj).
 """
 
 import sys
@@ -18,7 +21,8 @@ import numpy as np
 import pandas as pd
 import requests
 
-STAT_EE = 'https://andmed.stat.ee/api/v1/en/stat/'
+STAT_EE  = 'https://andmed.stat.ee/api/v1/en/stat/'
+EUROSTAT = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/'
 
 AGE_GROUPS = ['Y15-19', 'Y20-24', 'Y25-29', 'Y30-34', 'Y35-39', 'Y40-44', 'Y45-49',
               'Y50-54', 'Y55-59', 'Y60-64', 'Y65-69', 'Y70-74', 'Y_GE75']
@@ -82,3 +86,26 @@ years = codes[dims.index('Aasta')]
 prod = pd.DataFrame({'year': [int(y) for y in years], 'growth_pct': arr.reshape(-1)}).dropna()
 prod.to_csv('productivity_growth.csv', index=False)
 print(f'  Saved productivity_growth.csv ({prod.year.min()}–{prod.year.max()})')
+
+
+# ---------------------------------------------------------------------------
+# 3. Productivity relative to the EU -- Eurostat
+#    tesem160: nominal labour productivity per person employed, EU27_2020 = 100 (PPS)
+#    nama_10_lp_ulc: real labour productivity per person, % change on previous period
+# ---------------------------------------------------------------------------
+def eurostat_series(dataset, **params):
+    r = requests.get(EUROSTAT + dataset, params={'format': 'JSON', 'lang': 'EN', **params}, timeout=60)
+    r.raise_for_status()
+    d = r.json()
+    assert all(d['size'][d['id'].index(k)] == 1 for k in d['id'] if k != 'time'), 'expected a single series'
+    t = d['dimension']['time']['category']['index']
+    return pd.Series({int(y): d['value'].get(str(i)) for y, i in t.items()}, dtype=float)
+
+print('Fetching Eurostat tesem160 / nama_10_lp_ulc (productivity relative to the EU)...')
+eu = pd.DataFrame({
+    'ee_level_pct_eu': eurostat_series('tesem160', geo='EE', na_item='NLPR_PER'),
+    'eu_growth_pct':   eurostat_series('nama_10_lp_ulc', geo='EU27_2020', na_item='RLPR_PER', unit='PCH_PRE'),
+}).rename_axis('year').dropna(how='all')
+eu.to_csv('eu_productivity.csv')
+print(f'  Saved eu_productivity.csv ({eu.index.min()}–{eu.index.max()}); '
+      f'Estonia {eu.ee_level_pct_eu.last_valid_index()}: {eu.ee_level_pct_eu.dropna().iloc[-1]}% of EU')

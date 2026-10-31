@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 
 from projection import (
     BASE_YEAR, MAB_BASE, EMP_PRIME, EMP_OLDER,
-    last_known_tfr, load_emp_rates, load_productivity_growth, mean_growth,
-    employment_path, required_productivity,
+    last_known_tfr, load_emp_rates, load_productivity_growth, load_eu_productivity, mean_growth,
+    employment_path, required_productivity, catch_up_productivity,
 )
 from model import load_base, run_scenario
 
@@ -24,12 +24,21 @@ TEXT = {
         header='Tootlikkuse kasv, mis kompenseerib tööjõu vähenemist',
         intro=('Kui hõivatute arv kahaneb, peab iga töötaja tootma rohkem, et toodang (SKP) ei väheneks. '
                'See leht arvutab, kui kiiresti peaks tööjõu tootlikkus kasvama, et toodang kokku või '
-               'toodang inimese kohta püsiks 2025. aasta tasemel või kasvaks valitud määraga.'),
+               'toodang inimese kohta püsiks 2025. aasta tasemel või kasvaks valitud määraga, või et '
+               'Eesti jõuaks tootlikkuselt järele ELi keskmisele.'),
         loading='Laadin andmeid...',
         load_error='Andmete laadimine ebaõnnestus. Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.',
         sidebar='Vali eeldused',
         target_year='Sihtaasta',
-        target='Eesmärk', opt_total='Toodang kokku', opt_pp='Toodang inimese kohta',
+        target='Eesmärk', opt_total='Toodang kokku', opt_pp='Toodang inimese kohta', opt_eu='ELi keskmine',
+        catch_up_year='Järelejõudmise aasta',
+        eu_growth='ELi tootlikkuse kasv (%/a)',
+        eu_growth_help='Eurostat: ELi keskmine {a}–{last} oli {g:.2f}%/a.',
+        m_output='Toodang kokku vs {year}', m_required_eu='Vajalik kasv kuni {cy}',
+        eu_note=('Eesti tootlikkus hõivatu kohta oli {year}. aastal {lvl:.1f}% ELi keskmisest (ostujõu '
+                 'standardis, Eurostat). Eesmärk: 100% aastaks {cy}; seejärel kasvab tootlikkus ELiga sama '
+                 'kiiresti. Toodang kokku kujuneb tootlikkuse ja hõivatute arvu koosmõjul.'),
+        cap_eu='Tootlikkus hõivatu kohta, % ELi keskmisest', lab_actual='Tegelik',
         growth='Toodangu kasv (%/a)',
         growth_help='0 = toodang (kokku või inimese kohta) püsib baasaasta tasemel.',
         prime=f'Hõivemäära muutus, vanus {EMP_PRIME[0]}–{EMP_PRIME[1] - 1} (pp)',
@@ -57,6 +66,8 @@ aastal $t$ (baasaasta = 1):
 
 - toodang kokku: $$A_t = (1+g)^t \cdot \frac{E_0}{E_t}$$
 - toodang inimese kohta: $$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
+- ELi keskmine: $$A_t = (1+g_{EL})^t \cdot (1/r_0)^{\min(t,T)/T}$$, kus $r_0$ on Eesti tase ELi
+  suhtes baasaastal ja $T$ aastate arv järelejõudmiseni
 
 kus $E_t$ on hõivatute arv ja $P_t$ rahvaarv. Hõivatute arv = prognoositud rahvastik soo ja
 vanuse järgi × hõivemäär. Hõivemäärad on 2025. aasta tööjõu-uuringu tulemused soo ja
@@ -68,12 +79,21 @@ lineaarselt ja hõivemäär ei ületa 95%. Tootlikkus on mõõdetud hõivatu, mi
         header='Productivity growth needed to offset a shrinking workforce',
         intro=('When the number of employed people shrinks, each worker has to produce more for output (GDP) '
                'not to fall. This page calculates how fast labour productivity would have to grow to keep total '
-               'output or output per person at the 2025 level, or growing at a chosen rate.'),
+               'output or output per person at the 2025 level, or growing at a chosen rate, or for Estonia to '
+               'catch up with the EU average productivity level.'),
         loading='Loading data...',
         load_error='Failed to load data. Please check your internet connection and reload the page.',
         sidebar='Select assumptions',
         target_year='Target year',
-        target='Target', opt_total='Total output', opt_pp='Output per person',
+        target='Target', opt_total='Total output', opt_pp='Output per person', opt_eu='EU average',
+        catch_up_year='Catch-up year',
+        eu_growth='EU productivity growth (%/yr)',
+        eu_growth_help='Eurostat: the EU average in {a}–{last} was {g:.2f}%/yr.',
+        m_output='Total output vs {year}', m_required_eu='Required growth until {cy}',
+        eu_note=('In {year}, Estonia\'s productivity per employed person was {lvl:.1f}% of the EU average '
+                 '(purchasing power standards, Eurostat). Target: 100% by {cy}; after that productivity grows '
+                 'at the EU rate. Total output results from productivity and the number of employed.'),
+        cap_eu='Productivity per employed person, % of EU average', lab_actual='Actual',
         growth='Output growth (%/yr)',
         growth_help='0 = output (total or per person) stays at the base-year level.',
         prime=f'Employment rate change, ages {EMP_PRIME[0]}–{EMP_PRIME[1] - 1} (pp)',
@@ -101,6 +121,8 @@ in year $t$ (base year = 1) is
 
 - total output: $$A_t = (1+g)^t \cdot \frac{E_0}{E_t}$$
 - output per person: $$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
+- EU average: $$A_t = (1+g_{EU})^t \cdot (1/r_0)^{\min(t,T)/T}$$, where $r_0$ is Estonia's level
+  relative to the EU in the base year and $T$ the number of years to catch up
 
 where $E_t$ is the number of employed persons and $P_t$ the population. Employed persons =
 projected population by sex and age × employment rate. Employment rates are the 2025 labour
@@ -115,7 +137,7 @@ per employed person, not per hour worked.
 @st.cache_data
 def load_labour_data():
     rate_f, rate_m = load_emp_rates()
-    return rate_f, rate_m, load_productivity_growth()
+    return rate_f, rate_m, load_productivity_growth(), load_eu_productivity()
 
 
 lang = st.radio("Language", ["ET", "EN"], horizontal=True, label_visibility="hidden")
@@ -128,7 +150,7 @@ st.markdown(T['intro'])
 try:
     with st.spinner(T['loading']):
         b = load_base()
-        rate_f, rate_m, prod_growth = load_labour_data()
+        rate_f, rate_m, prod_growth, eu_prod = load_labour_data()
 except Exception as e:
     st.error(T['load_error'])
     st.exception(e)
@@ -136,14 +158,27 @@ except Exception as e:
 
 # --- Sidebar ---
 st.sidebar.markdown(T['sidebar'])
-_target = st.sidebar.segmented_control(T['target'], options=['total', 'per_person'],
-                                       format_func=lambda o: T['opt_total'] if o == 'total' else T['opt_pp'],
+TARGETS = {'total': 'opt_total', 'per_person': 'opt_pp', 'eu': 'opt_eu'}
+_target = st.sidebar.segmented_control(T['target'], options=list(TARGETS),
+                                       format_func=lambda o: T[TARGETS[o]],
                                        selection_mode='single', default='total', key='prod_target')
-per_person = _target == 'per_person'   # None (deselected) falls back to total output
+target     = _target or 'total'   # None (deselected) falls back to total output
+per_person = target == 'per_person'
 target_year = st.sidebar.slider(T['target_year'], min_value=BASE_YEAR + 5, max_value=BASE_YEAR + 75,
                                 step=1, value=2050, key='prod_target_year')
-growth      = st.sidebar.slider(T['growth'], min_value=0.0, max_value=4.0, step=0.25, value=0.0,
-                                help=T['growth_help'], key='prod_growth') / 100
+eu_growth_hist = eu_prod['eu_growth_pct'].dropna()
+eu_last        = int(eu_growth_hist.index.max())
+eu_mean        = mean_growth(eu_growth_hist, BENCHMARK_START[1], eu_last)
+if target == 'eu':
+    catch_up_year = st.sidebar.slider(T['catch_up_year'], min_value=BASE_YEAR + 1, max_value=BASE_YEAR + 75,
+                                      step=1, value=2050, key='prod_catch_up_year')
+    eu_growth     = st.sidebar.slider(T['eu_growth'], min_value=0.0, max_value=2.0, step=0.1,
+                                      value=float(round(eu_mean, 1)), key='prod_eu_growth',
+                                      help=T['eu_growth_help'].format(a=BENCHMARK_START[1], last=eu_last,
+                                                                      g=eu_mean)) / 100
+else:
+    growth = st.sidebar.slider(T['growth'], min_value=0.0, max_value=4.0, step=0.25, value=0.0,
+                               help=T['growth_help'], key='prod_growth') / 100
 shift_prime = st.sidebar.slider(T['prime'], min_value=-10, max_value=10, step=1, value=0,
                                 help=T['shift_help'], key='prod_shift_prime') / 100
 shift_older = st.sidebar.slider(T['older'], min_value=-10, max_value=25, step=1, value=0,
@@ -172,7 +207,13 @@ years      = yearly.index.values
 population = yearly[['estonian', 'other']].sum(axis=1).values
 employed   = employment_path(by_age, rate_f, rate_m, shift_prime, shift_older)
 ratio      = employed / population
-index, annual = required_productivity(employed, population, growth, per_person)
+if target == 'eu':
+    level_hist = eu_prod['ee_level_pct_eu'].dropna()
+    level_year = BASE_YEAR if BASE_YEAR in level_hist.index else int(level_hist.index.max())
+    index, annual, level = catch_up_productivity(period, catch_up_year - BASE_YEAR,
+                                                 level_hist[level_year] / 100, eu_growth)
+else:
+    index, annual = required_productivity(employed, population, growth, per_person)
 avg_required  = index[-1] ** (1 / period) - 1
 
 last_data = int(prod_growth.index.max())
@@ -184,11 +225,20 @@ st.caption(f"{target_year}")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric(T['m_employed'], f"{employed[-1] / 1000:,.0f} {T['thousand']}",
           f"{(employed[-1] - employed[0]) / 1000:+,.0f} {T['thousand']}", border=False)
-c2.metric(T['m_ratio'], f"{ratio[-1] * 100:.1f}%", f"{(ratio[-1] - ratio[0]) * 100:+.1f}pp", border=False)
-c3.metric(T['m_required'], f"{avg_required * 100:.2f}{T['per_year']}", border=False)
+if target == 'eu':
+    output = round((index[-1] * employed[-1] / employed[0] - 1) * 100) + 0
+    c2.metric(T['m_output'].format(year=BASE_YEAR), f"{output:+d}%" if output else "0%", border=False)
+else:
+    c2.metric(T['m_ratio'], f"{ratio[-1] * 100:.1f}%", f"{(ratio[-1] - ratio[0]) * 100:+.1f}pp", border=False)
+if target == 'eu':   # constant during catch-up, so the first year's rate is the rate until catch-up_year
+    c3.metric(T['m_required_eu'].format(cy=catch_up_year), f"{annual[0] * 100:.2f}{T['per_year']}", border=False)
+else:
+    c3.metric(T['m_required'], f"{avg_required * 100:.2f}{T['per_year']}", border=False)
 cumul = round((index[-1] - 1) * 100) + 0   # + 0 turns -0 into 0
 c4.metric(T['m_cumul'].format(year=BASE_YEAR), f"{cumul:+d}%" if cumul else "0%", border=False)
 a0, a1 = BENCHMARK_START
+if target == 'eu':
+    st.caption(T['eu_note'].format(year=level_year, lvl=level_hist[level_year], cy=catch_up_year))
 st.caption(T['benchmark'].format(a0=a0, a1=a1, last=last_data, g0=bench[a0], g1=bench[a1]))
 
 # --- Charts ---
@@ -197,7 +247,15 @@ col_l, col_r = st.columns(2)
 with plt.rc_context(CHART_STYLE):
     with col_l:
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        if per_person:
+        if target == 'eu':
+            ax.plot(level_hist.index, level_hist.values, linewidth=2.5, color='#2196F3', label=T['lab_actual'])
+            ax.plot(years, level * 100, linewidth=2.5, linestyle='--', color='#FF5722', label=T['lab_req'])
+            ax.axhline(100, color='black', linewidth=0.8)
+            ax.set_ylim(top=max(105, level.max() * 100 + 5))
+            ax.set(ylabel='%', xlabel=T['xlab'])
+            ax.legend(loc='lower right', fontsize=14)
+            st.caption(T['cap_eu'])
+        elif per_person:
             ax.plot(years, ratio * 100, linewidth=2.5, color='#2e86c1')
             ax.set(ylabel=T['ylab_ratio'], xlabel=T['xlab'])
             st.caption(T['cap_ratio'].format(y0=BASE_YEAR, y1=target_year))

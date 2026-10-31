@@ -18,6 +18,7 @@ URL_EMIG_RATES     = 'https://raw.githubusercontent.com/klesment/PopProj/main/em
 URL_IMMIG_BASELINE = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_baseline.csv'
 URL_EMP_RATES      = 'https://raw.githubusercontent.com/klesment/PopProj/main/emp_rates_2025.csv'
 URL_PRODUCTIVITY   = 'https://raw.githubusercontent.com/klesment/PopProj/main/productivity_growth.csv'
+URL_EU_PRODUCTIVITY = 'https://raw.githubusercontent.com/klesment/PopProj/main/eu_productivity.csv'
 
 # Demographic constants
 BASE_YEAR           = 2025    # projection starts from the 1 January population of this year
@@ -514,3 +515,36 @@ def required_productivity(employed, population, growth=0.0, per_person=True):
     index  = (1 + growth) ** t * ratio[0] / ratio
     annual = index[1:] / index[:-1] - 1
     return index, annual
+
+
+def load_eu_productivity():
+    """
+    Estonia's labour productivity per employed person as % of the EU27 average (PPS)
+    and EU27 real productivity growth (%), as a DataFrame indexed by year.
+    """
+    s = requests.get(URL_EU_PRODUCTIVITY, timeout=60)
+    s.raise_for_status()
+    return pd.read_csv(io.StringIO(s.text)).set_index('year')
+
+
+def catch_up_productivity(period, catch_up_years, level0, eu_growth):
+    """
+    Productivity path for reaching the EU average level.
+
+    period         - number of projection years
+    catch_up_years - years until Estonia's level reaches the EU average
+    level0         - Estonia's base-year level relative to the EU (e.g. 0.775)
+    eu_growth      - assumed annual EU productivity growth (fraction)
+
+    The relative level converges geometrically to 1 over catch_up_years and stays
+    there; Estonia grows at the EU rate afterwards (or throughout if level0 >= 1):
+    productivity_t / productivity_0 = (1 + eu_growth)^t × (1 / level0)^(min(t, T) / T).
+
+    Returns (index, annual, level): index (base year = 1) and level (relative to
+    the EU) have length period + 1, annual (required growth) has length period.
+    """
+    t     = np.arange(period + 1)
+    gap   = max(1 / level0, 1.0)
+    level = level0 * gap ** (np.minimum(t, catch_up_years) / catch_up_years)
+    index = (1 + eu_growth) ** t * level / level0
+    return index, index[1:] / index[:-1] - 1, level
