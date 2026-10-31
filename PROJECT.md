@@ -15,7 +15,7 @@ streamlit run entry.py
 | `entry.py` | Multi-page navigation |
 | `streamlit_proj.py` | UI, sidebar inputs, charts (`streamlit_proj_en.py`: English copy) |
 | `model.py` | Cached data loading and scenario runs shared by the pages (`load_base`, `run_scenario`) |
-| `tootlikkus.py` | Productivity page (ET/EN): productivity growth needed to keep output per person |
+| `tootlikkus.py` | Productivity page (ET/EN): productivity growth needed to keep total output or output per person |
 | `projection.py` | All model logic (no Streamlit) |
 | `meetod.py` | Methodology page (Estonian), includes migration rates chart |
 | `allikad.py` | Data sources page |
@@ -67,7 +67,7 @@ streamlit run entry.py
 | `URL_EMP_RATES` | `emp_rates_2025.csv` | Employment rate (%) by sex and 5-yr age group 15–74, 75+, 2025 | TT330 |
 | `URL_PRODUCTIVITY` | `productivity_growth.csv` | Annual real change (%) of productivity per employed person, 1996– | RAL0013 |
 
-Productivity page: employed = projected population by sex and age × employment rate (user shifts for ages 20–54 and 55–74 phased in linearly, capped at 95%). Required productivity index A_t = (1+g)^t × (E_0/P_0)/(E_t/P_t) keeps output per person growing at g. The demographic scenario is taken from the Model page via `st.session_state['scenario']` (Model defaults if not visited); the page has its own target year.
+Productivity page: employed = projected population by sex and age × employment rate (user shifts for ages 20–54 and 55–74 phased in linearly, capped at 95%). Target (selectable): total output, A_t = (1+g)^t × E_0/E_t (default), or output per person, A_t = (1+g)^t × (E_0/P_0)/(E_t/P_t), growing at g from the 2025 level. The demographic scenario is taken from the Model page via `st.session_state['scenario']` (Model defaults if not visited); the page has its own target year.
 
 ## Model Logic
 

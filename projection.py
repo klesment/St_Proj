@@ -495,17 +495,21 @@ def employment_path(by_age, rate_f, rate_m, shift_prime=0.0, shift_older=0.0):
     return employed
 
 
-def required_productivity(employed, population, growth=0.0):
+def required_productivity(employed, population, growth=0.0, per_person=True):
     """
-    Productivity needed for output per person to grow at rate growth per year.
+    Productivity needed for output to grow at rate growth per year.
 
-    Output per person = productivity × employed / population, so
-    productivity_t / productivity_0 = (1 + growth)^t × (E_0 / P_0) / (E_t / P_t).
+    per_person=True : output per person = productivity × employed / population, so
+                      productivity_t / productivity_0 = (1 + growth)^t × (E_0 / P_0) / (E_t / P_t)
+    per_person=False: total output = productivity × employed, so
+                      productivity_t / productivity_0 = (1 + growth)^t × E_0 / E_t
 
     Returns (index, annual): index has length T + 1 (base year = 1),
     annual is the required growth rate in each projection year (length T).
     """
-    ratio  = np.asarray(employed) / np.asarray(population)
+    ratio  = np.asarray(employed, dtype=float)
+    if per_person:
+        ratio = ratio / np.asarray(population)
     t      = np.arange(len(ratio))
     index  = (1 + growth) ** t * ratio[0] / ratio
     annual = index[1:] / index[:-1] - 1

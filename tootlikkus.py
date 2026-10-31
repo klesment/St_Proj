@@ -21,16 +21,17 @@ BENCHMARK_START = (2000, 2010)   # benchmark periods: start year → last year i
 
 TEXT = {
     'ET': dict(
-        header='Tootlikkuse kasv, mis hoiab toodangu inimese kohta',
-        intro=('Kui hõivatute arv kahaneb kiiremini kui rahvaarv, peab iga töötaja tootma rohkem, et '
-               'toodang (SKP) inimese kohta ei väheneks. See leht arvutab, kui kiiresti peaks tööjõu '
-               'tootlikkus kasvama, et toodang inimese kohta püsiks või kasvaks valitud määraga.'),
+        header='Tootlikkuse kasv, mis kompenseerib tööjõu vähenemist',
+        intro=('Kui hõivatute arv kahaneb, peab iga töötaja tootma rohkem, et toodang (SKP) ei väheneks. '
+               'See leht arvutab, kui kiiresti peaks tööjõu tootlikkus kasvama, et toodang kokku või '
+               'toodang inimese kohta püsiks 2025. aasta tasemel või kasvaks valitud määraga.'),
         loading='Laadin andmeid...',
         load_error='Andmete laadimine ebaõnnestus. Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.',
         sidebar='Vali eeldused',
         target_year='Sihtaasta',
-        growth='Toodangu kasv inimese kohta (%/a)',
-        growth_help='0 = toodang inimese kohta püsib baasaasta tasemel.',
+        target='Eesmärk', opt_total='Toodang kokku', opt_pp='Toodang inimese kohta',
+        growth='Toodangu kasv (%/a)',
+        growth_help='0 = toodang (kokku või inimese kohta) püsib baasaasta tasemel.',
         prime=f'Hõivemäära muutus, vanus {EMP_PRIME[0]}–{EMP_PRIME[1] - 1} (pp)',
         older=f'Hõivemäära muutus, vanus {EMP_OLDER[0]}–{EMP_OLDER[1] - 1} (pp)',
         shift_help='Muutus sihtaastaks; rakendub lineaarselt alates baasaastast.',
@@ -45,17 +46,17 @@ TEXT = {
         benchmark=('Võrdluseks: tegelik tootlikkuse kasv hõivatu kohta oli {a0}–{last} keskmiselt {g0:.1f}%/a '
                    'ja {a1}–{last} {g1:.1f}%/a (Statistikaamet, RAL0013).'),
         cap_ratio='Hõivatute osa rahvastikust {y0}–{y1}',
+        cap_employed='Hõivatute arv {y0}–{y1}',
         cap_req='Vajalik tootlikkuse kasv aastas {y0}–{y1}',
-        ylab_ratio='%', ylab_req='%/a', xlab='Aasta',
+        ylab_ratio='%', ylab_employed='Tuhat inimest', ylab_req='%/a', xlab='Aasta',
         lab_req='Vajalik', lab_bench='Tegelik {a}–{last}',
         method_title='Kuidas arvutatakse',
         method=r'''
-Toodang inimese kohta = tootlikkus × hõivatud / rahvaarv.
+Toodang = tootlikkus × hõivatud. Kui toodang peab kasvama määraga $g$, on vajalik tootlikkus
+aastal $t$ (baasaasta = 1):
 
-Kui toodang inimese kohta peab kasvama määraga $g$, on vajalik tootlikkus aastal $t$
-(baasaasta = 1):
-
-$$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
+- toodang kokku: $$A_t = (1+g)^t \cdot \frac{E_0}{E_t}$$
+- toodang inimese kohta: $$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
 
 kus $E_t$ on hõivatute arv ja $P_t$ rahvaarv. Hõivatute arv = prognoositud rahvastik soo ja
 vanuse järgi × hõivemäär. Hõivemäärad on 2025. aasta tööjõu-uuringu tulemused soo ja
@@ -64,16 +65,17 @@ lineaarselt ja hõivemäär ei ületa 95%. Tootlikkus on mõõdetud hõivatu, mi
 ''',
     ),
     'EN': dict(
-        header='Productivity growth needed to maintain output per person',
-        intro=('When the number of employed people shrinks faster than the population, each worker has to '
-               'produce more for output (GDP) per person not to fall. This page calculates how fast labour '
-               'productivity would have to grow to keep output per person constant, or growing at a chosen rate.'),
+        header='Productivity growth needed to offset a shrinking workforce',
+        intro=('When the number of employed people shrinks, each worker has to produce more for output (GDP) '
+               'not to fall. This page calculates how fast labour productivity would have to grow to keep total '
+               'output or output per person at the 2025 level, or growing at a chosen rate.'),
         loading='Loading data...',
         load_error='Failed to load data. Please check your internet connection and reload the page.',
         sidebar='Select assumptions',
         target_year='Target year',
-        growth='Output per person growth (%/yr)',
-        growth_help='0 = output per person stays at the base-year level.',
+        target='Target', opt_total='Total output', opt_pp='Output per person',
+        growth='Output growth (%/yr)',
+        growth_help='0 = output (total or per person) stays at the base-year level.',
         prime=f'Employment rate change, ages {EMP_PRIME[0]}–{EMP_PRIME[1] - 1} (pp)',
         older=f'Employment rate change, ages {EMP_OLDER[0]}–{EMP_OLDER[1] - 1} (pp)',
         shift_help='Change by the target year, phased in linearly from the base year.',
@@ -88,17 +90,17 @@ lineaarselt ja hõivemäär ei ületa 95%. Tootlikkus on mõõdetud hõivatu, mi
         benchmark=('For comparison: actual productivity growth per employed person averaged {g0:.1f}%/yr in '
                    '{a0}–{last} and {g1:.1f}%/yr in {a1}–{last} (Statistics Estonia, RAL0013).'),
         cap_ratio='Employed share of population {y0}–{y1}',
+        cap_employed='Employed persons {y0}–{y1}',
         cap_req='Required annual productivity growth {y0}–{y1}',
-        ylab_ratio='%', ylab_req='%/yr', xlab='Year',
+        ylab_ratio='%', ylab_employed='Thousand people', ylab_req='%/yr', xlab='Year',
         lab_req='Required', lab_bench='Actual {a}–{last}',
         method_title='How it is calculated',
         method=r'''
-Output per person = productivity × employed / population.
+Output = productivity × employed. For output to grow at rate $g$, the required productivity
+in year $t$ (base year = 1) is
 
-For output per person to grow at rate $g$, the required productivity in year $t$
-(base year = 1) is
-
-$$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
+- total output: $$A_t = (1+g)^t \cdot \frac{E_0}{E_t}$$
+- output per person: $$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
 
 where $E_t$ is the number of employed persons and $P_t$ the population. Employed persons =
 projected population by sex and age × employment rate. Employment rates are the 2025 labour
@@ -134,6 +136,10 @@ except Exception as e:
 
 # --- Sidebar ---
 st.sidebar.markdown(T['sidebar'])
+_target = st.sidebar.segmented_control(T['target'], options=['total', 'per_person'],
+                                       format_func=lambda o: T['opt_total'] if o == 'total' else T['opt_pp'],
+                                       selection_mode='single', default='total', key='prod_target')
+per_person = _target == 'per_person'   # None (deselected) falls back to total output
 target_year = st.sidebar.slider(T['target_year'], min_value=BASE_YEAR + 5, max_value=BASE_YEAR + 75,
                                 step=1, value=2050, key='prod_target_year')
 growth      = st.sidebar.slider(T['growth'], min_value=0.0, max_value=4.0, step=0.25, value=0.0,
@@ -166,7 +172,7 @@ years      = yearly.index.values
 population = yearly[['estonian', 'other']].sum(axis=1).values
 employed   = employment_path(by_age, rate_f, rate_m, shift_prime, shift_older)
 ratio      = employed / population
-index, annual = required_productivity(employed, population, growth)
+index, annual = required_productivity(employed, population, growth, per_person)
 avg_required  = index[-1] ** (1 / period) - 1
 
 last_data = int(prod_growth.index.max())
@@ -191,9 +197,15 @@ col_l, col_r = st.columns(2)
 with plt.rc_context(CHART_STYLE):
     with col_l:
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        ax.plot(years, ratio * 100, linewidth=2.5, color='#2e86c1')
-        ax.set(ylabel=T['ylab_ratio'], xlabel=T['xlab'])
-        st.caption(T['cap_ratio'].format(y0=BASE_YEAR, y1=target_year))
+        if per_person:
+            ax.plot(years, ratio * 100, linewidth=2.5, color='#2e86c1')
+            ax.set(ylabel=T['ylab_ratio'], xlabel=T['xlab'])
+            st.caption(T['cap_ratio'].format(y0=BASE_YEAR, y1=target_year))
+        else:
+            ax.plot(years, employed / 1000, linewidth=2.5, color='#2e86c1')
+            ax.set(ylabel=T['ylab_employed'], xlabel=T['xlab'])
+            ax.set_ylim(bottom=0)
+            st.caption(T['cap_employed'].format(y0=BASE_YEAR, y1=target_year))
         st.pyplot(fig)
         plt.close(fig)
 
