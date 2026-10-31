@@ -10,167 +10,36 @@ from matplotlib.legend_handler import HandlerBase
 from matplotlib.patches import Patch, Rectangle
 
 from projection import (
-    URL_LT, URL_LT_MALE, URL_POP,
-    BASE_YEAR, LT_YEAR, MAB_BASE, SD_MAB_BASE, MAX_AGE, OPEN_AGE_SENTINEL, SEX_RATIO_AT_BIRTH,
+    BASE_YEAR, MAB_BASE, MAX_AGE, SEX_RATIO_AT_BIRTH,
     AGE_SCHOOL_MIN, AGE_SCHOOL_MAX, AGE_WORK_MIN, AGE_WORK_MAX, AGE_OLD_MIN,
-    KNOWN_TFR,
-    load_data, load_tfr_history, last_known_tfr, build_scenario_df,
-    asfr_gamma, build_leslie_base, leslie, build_male_survival, improve_lt,
-    load_mt_stock, load_immig_inflow_dist, load_emig_rates, load_immig_baseline,
-    build_immig_vectors, project_both_sexes, compute_indicators,
+    last_known_tfr, improve_lt, compute_indicators,
 )
+
+from model import load_base, run_scenario
 
 FIGURE_SIZE   = (8, 4.5)
 AGE_TICK_STEP = 5
 
 
-@st.cache_data
-def load_and_clean():
-    lt = load_data(URL_LT)
-    lt['Age'] = lt['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
-    lt = lt.apply(pd.to_numeric)
-    lt.loc[lt['qx'] == 0, 'qx'] = np.nan
-
-    lt_male = load_data(URL_LT_MALE)
-    lt_male['Age'] = lt_male['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
-    lt_male = lt_male.apply(pd.to_numeric)
-    lt_male.loc[lt_male['qx'] == 0, 'qx'] = np.nan
-
-    pop = load_data(URL_POP)
-    pop['Age'] = pop['Age'].replace(OPEN_AGE_SENTINEL, str(MAX_AGE))
-    pop = pop.apply(pd.to_numeric)
-
-    tfr_history = load_tfr_history()
-
-    return lt, lt_male, pop, tfr_history
-
-
-@st.cache_data
-def load_immig_data(_lt_female, _lt_male):
-    est_f, est_m, oth_f, oth_m     = load_mt_stock(_lt_female, _lt_male)
-    inflow_dist_f, inflow_dist_m   = load_immig_inflow_dist(_lt_female, _lt_male)
-    emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m = load_emig_rates()
-    base_nat_f, base_nat_m, base_imm_f, base_imm_m = load_immig_baseline(_lt_female, _lt_male)
-    return (est_f, est_m, oth_f, oth_m,
-            inflow_dist_f, inflow_dist_m,
-            emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
-            base_nat_f, base_nat_m, base_imm_f, base_imm_m)
-
-
-@st.cache_data
-def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_immig,
-                   mort_improvement, baseline_inflow, emigration_scale,
-                   _lt_female, _lt_male,
-                   n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
-                   inflow_dist_f, inflow_dist_m,
-                   emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
-                   base_nat_f, base_nat_m, base_imm_f, base_imm_m,
-                   osc_amp=0.0, osc_cycle=10):
-    e0_base  = _lt_female['Tx'].iloc[0] / _lt_female['lx'].iloc[0]
-    e0m_base = _lt_male['Tx'].iloc[0]   / _lt_male['lx'].iloc[0]
-    if period == 0:
-        d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
-        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base, {}, None
-
-    d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period, osc_amp, osc_cycle)
-    F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
-
-    if mort_improvement == 0:
-        # Fast path: single life table for all years
-        base_leslie  = build_leslie_base(_lt_female)
-        LL           = [leslie(f, base_leslie) for f in F]
-        subd_m_arr   = np.tile(build_male_survival(_lt_male), (period, 1))
-        l0_r_arr     = np.full(period, _lt_male['Lx'].iloc[0] / _lt_female['Lx'].iloc[0])
-        e0_end       = e0_base
-        e0m_end      = e0m_base
-    else:
-        # Per-year life tables with mortality improvement
-        LL         = []
-        subd_m_arr = np.zeros((period, MAX_AGE))
-        l0_r_arr   = np.zeros(period)
-        for t in range(period):
-            lt_f_t = improve_lt(_lt_female, mort_improvement, t + 1)
-            lt_m_t = improve_lt(_lt_male,   mort_improvement, t + 1)
-            base_t = build_leslie_base(lt_f_t)
-            LL.append(leslie(F[t], base_t))
-            subd_m_arr[t] = build_male_survival(lt_m_t)
-            l0_r_arr[t]   = lt_m_t['Lx'].iloc[0] / lt_f_t['Lx'].iloc[0]
-        lt_end   = improve_lt(_lt_female, mort_improvement, period)
-        lt_m_end = improve_lt(_lt_male,   mort_improvement, period)
-        e0_end   = lt_end['Tx'].iloc[0]   / lt_end['lx'].iloc[0]
-        e0m_end  = lt_m_end['Tx'].iloc[0] / lt_m_end['lx'].iloc[0]
-
-    # Scenario inflow: user-controlled additional non-Estonian immigrants
-    scen_imm_f, scen_imm_m = build_immig_vectors(
-        extra_immig,
-        np.array(inflow_dist_f), np.array(inflow_dist_m),
-        period,
-    )
-
-    # Total inflow: baseline (always on) + scenario (user-controlled, immigrant stock only)
-    nat_inflow_f = np.tile(np.array(base_nat_f) * baseline_inflow, (period, 1))
-    nat_inflow_m = np.tile(np.array(base_nat_m) * baseline_inflow, (period, 1))
-    imm_inflow_f = np.tile(np.array(base_imm_f) * baseline_inflow, (period, 1)) + scen_imm_f
-    imm_inflow_m = np.tile(np.array(base_imm_m) * baseline_inflow, (period, 1)) + scen_imm_m
-
-    nat_f, nat_m, out_imm_f, out_imm_m, snapshots, yearly = project_both_sexes(
-        np.array(LL), subd_m_arr, l0_r_arr,
-        n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
-        nat_inflow_f, nat_inflow_m,
-        imm_inflow_f, imm_inflow_m,
-        np.array(emig_nat_f) * emigration_scale, np.array(emig_nat_m) * emigration_scale,
-        np.array(emig_imm_f) * emigration_scale, np.array(emig_imm_m) * emigration_scale,
-        period,
-        snapshot_years=(2050, 2075, 2100),
-    )
-    return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end, snapshots, yearly
-
-
 # --- Data ---
 try:
     with st.spinner('Loading data...'):
-        lt, lt_male, pop, tfr_history = load_and_clean()
+        b = load_base()
 except Exception as e:
     st.error(
         'Failed to load data. '
         'Please check your internet connection and reload the page.'
     )
+    st.exception(e)
     st.stop()
 
-lt_base      = lt[lt['Year'] == LT_YEAR]
-lt_male_base = lt_male[lt_male['Year'] == LT_YEAR]
-pop_base     = pop[pop['Year'] == BASE_YEAR]
-e0_base      = lt_base['Tx'].iloc[0]      / lt_base['lx'].iloc[0]
-e0m_base     = lt_male_base['Tx'].iloc[0] / lt_male_base['lx'].iloc[0]
-N0           = pop_base.Female[0:MAX_AGE].tolist()
-N0_male      = pop_base.Male[0:MAX_AGE].tolist()
-tfr_start    = tfr_history[BASE_YEAR]
+lt_base, lt_male_base, pop, tfr_history = b.lt_base, b.lt_male_base, b.pop, b.tfr_history
+e0_base, e0m_base, N0, N0_male          = b.e0_base, b.e0m_base, b.N0, b.N0_male
+N0_nat_f, N0_nat_m, N0_imm_f, N0_imm_m  = b.N0_nat_f, b.N0_nat_m, b.N0_imm_f, b.N0_imm_m
+emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m = b.emig_nat_f, b.emig_nat_m, b.emig_imm_f, b.emig_imm_m
+base_nat_f, base_nat_m, base_imm_f, base_imm_m = b.base_nat_f, b.base_nat_m, b.base_imm_f, b.base_imm_m
+tfr_start    = b.tfr_start
 tfr_last_year, tfr_last = last_known_tfr(tfr_start)
-
-try:
-    with st.spinner('Loading migration data...'):
-        (census_est_f, census_est_m, census_oth_f, census_oth_m,
-         inflow_dist_f, inflow_dist_m,
-         emig_nat_f, emig_nat_m, emig_imm_f, emig_imm_m,
-         base_nat_f, base_nat_m, base_imm_f, base_imm_m) = load_immig_data(
-            _lt_female=lt_base, _lt_male=lt_male_base
-        )
-except Exception:
-    st.error(
-        'Failed to load migration data. '
-        'Please check your internet connection and reload the page.'
-    )
-    st.stop()
-
-# Split 2023 population using 2021 census mother-tongue proportions
-census_total_f = census_est_f + census_oth_f
-census_total_m = census_est_m + census_oth_m
-oth_share_f = np.where(census_total_f > 0, census_oth_f / census_total_f, 0.0)
-oth_share_m = np.where(census_total_m > 0, census_oth_m / census_total_m, 0.0)
-N0_imm_f = np.array(N0)      * oth_share_f
-N0_imm_m = np.array(N0_male) * oth_share_m
-N0_nat_f = np.array(N0)      - N0_imm_f
-N0_nat_m = np.array(N0_male) - N0_imm_m
 
 # --- Sidebar ---
 st.sidebar.markdown('Select projection assumptions')
@@ -219,19 +88,12 @@ def user_input_features(tfr_start):
 TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement, baseline_inflow, emigration_scale, osc_amp, osc_cycle = user_input_features(tfr_start)
 
 # --- Projection ---
-d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end, snapshots, yearly = run_projection(
-    tfr_start, TFR_Change, Ramp, mab_stop, period, extra_immig,
-    mort_improvement, baseline_inflow, emigration_scale,
-    _lt_female=lt_base, _lt_male=lt_male_base,
-    n0_nat_f=N0_nat_f.tolist(), n0_nat_m=N0_nat_m.tolist(),
-    n0_imm_f=N0_imm_f.tolist(), n0_imm_m=N0_imm_m.tolist(),
-    inflow_dist_f=inflow_dist_f.tolist(), inflow_dist_m=inflow_dist_m.tolist(),
-    emig_nat_f=emig_nat_f.tolist(), emig_nat_m=emig_nat_m.tolist(),
-    emig_imm_f=emig_imm_f.tolist(), emig_imm_m=emig_imm_m.tolist(),
-    base_nat_f=base_nat_f.tolist(), base_nat_m=base_nat_m.tolist(),
-    base_imm_f=base_imm_f.tolist(), base_imm_m=base_imm_m.tolist(),
-    osc_amp=osc_amp, osc_cycle=osc_cycle,
-)
+scenario = dict(tfr_change=TFR_Change, ramp=Ramp, mab_stop=mab_stop, period=period,
+                extra_immig=extra_immig, mort_improvement=mort_improvement,
+                baseline_inflow=baseline_inflow, emigration_scale=emigration_scale,
+                osc_amp=osc_amp, osc_cycle=osc_cycle)
+st.session_state['scenario'] = scenario   # demographic assumptions, reused on the productivity page
+d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end, snapshots, yearly, _ = run_scenario(b, scenario)
 
 out      = nat_f + imm_f
 out_male = nat_m + imm_m

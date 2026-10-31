@@ -13,11 +13,15 @@ streamlit run entry.py
 | File | Purpose |
 |---|---|
 | `entry.py` | Multi-page navigation |
-| `streamlit_proj.py` | UI, sidebar inputs, charts |
+| `streamlit_proj.py` | UI, sidebar inputs, charts (`streamlit_proj_en.py`: English copy) |
+| `model.py` | Cached data loading and scenario runs shared by the pages (`load_base`, `run_scenario`) |
+| `tootlikkus.py` | Productivity page (ET/EN): productivity growth needed to keep output per person |
 | `projection.py` | All model logic (no Streamlit) |
 | `meetod.py` | Methodology page (Estonian), includes migration rates chart |
 | `allikad.py` | Data sources page |
 | `fetch_immig_data.py` | One-time script: fetch migration data from stat.ee, save CSVs to data repo |
+| `fetch_population.py` | Script: fetch 1 January population by single age (RV0212) for the data repo |
+| `fetch_labour_data.py` | Script: fetch employment rates (TT330) and productivity growth (RAL0013) for the data repo |
 | `plot_migration_rates.py` | Diagnostic script: plot in/out rates by age (not part of the app) |
 
 ## Key Constants (`projection.py`)
@@ -56,6 +60,14 @@ streamlit run entry.py
 | `URL_IMMIG_INFLOW` | `immig_inflow_dist.csv` | Normalised inflow age distribution (shares), 2017–2019 avg, excl. Estonian returnees | RVR09 |
 | `URL_EMIG_RATES` | `emig_rates.csv` | Annual emigration rates by 5-yr age group and sex, 2017–2019 avg | RVR03 + RVR10 |
 | `URL_IMMIG_BASELINE` | `immig_baseline.csv` | Baseline annual inflow counts by 5-yr age group and sex, 2017–2019 avg | RVR03 + RVR10 |
+
+### Labour data (productivity page)
+| Variable | File | Content | Source |
+|---|---|---|---|
+| `URL_EMP_RATES` | `emp_rates_2025.csv` | Employment rate (%) by sex and 5-yr age group 15–74, 75+, 2025 | TT330 |
+| `URL_PRODUCTIVITY` | `productivity_growth.csv` | Annual real change (%) of productivity per employed person, 1996– | RAL0013 |
+
+Productivity page: employed = projected population by sex and age × employment rate (user shifts for ages 20–54 and 55–74 phased in linearly, capped at 95%). Required productivity index A_t = (1+g)^t × (E_0/P_0)/(E_t/P_t) keeps output per person growing at g. The demographic scenario is taken from the Model page via `st.session_state['scenario']` (Model defaults if not visited); the page has its own target year.
 
 ## Model Logic
 
@@ -119,7 +131,8 @@ project_both_sexes(
 - Old-age: ages 65+
 
 ## Caching
-`@st.cache_data` on `load_and_clean()`, `load_immig_data()`, and `run_projection()`. The `_lt_female`, `_lt_male` parameters are prefixed with `_` to exclude DataFrames from the cache key.
+`@st.cache_data` on `load_and_clean()`, `load_immig_data()`, and `run_projection()` (all in `model.py`).
+After deploying a change to `projection.py` or `model.py`, reboot the Streamlit Cloud app so the modules are reloaded. The `_lt_female`, `_lt_male` parameters are prefixed with `_` to exclude DataFrames from the cache key.
 
 ## User Inputs (Sidebar)
 - TFR at end of period (absolute value, slider 0.5–3.0, default = last known TFR)

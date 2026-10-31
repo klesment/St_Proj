@@ -16,6 +16,8 @@ URL_MT_STOCK       = 'https://raw.githubusercontent.com/klesment/PopProj/main/mt
 URL_IMMIG_INFLOW   = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_inflow_dist.csv'
 URL_EMIG_RATES     = 'https://raw.githubusercontent.com/klesment/PopProj/main/emig_rates.csv'
 URL_IMMIG_BASELINE = 'https://raw.githubusercontent.com/klesment/PopProj/main/immig_baseline.csv'
+URL_EMP_RATES      = 'https://raw.githubusercontent.com/klesment/PopProj/main/emp_rates_2025.csv'
+URL_PRODUCTIVITY   = 'https://raw.githubusercontent.com/klesment/PopProj/main/productivity_growth.csv'
 
 # Demographic constants
 BASE_YEAR           = 2025    # projection starts from the 1 January population of this year
@@ -41,6 +43,12 @@ AGE_SCHOOL_MAX = 18   # end of child age group (ages 0–17)
 AGE_WORK_MIN   = 18   # working-age lower bound
 AGE_WORK_MAX   = 65   # standard working-age upper bound (ages 15–64)
 AGE_OLD_MIN    = 65   # old-age lower bound
+
+# Employment (productivity page) — age bands with adjustable employment rates
+EMP_AGE_MIN   = 15     # youngest age group in the labour force survey
+EMP_PRIME     = (20, 55)   # prime working ages 20–54
+EMP_OLDER     = (55, 75)   # older working ages 55–74
+EMP_RATE_MAX  = 0.95   # upper bound for adjusted employment rates
 
 # Immigration constants — derived from RVR09 2017-2019 average, excl. Estonian returnees
 IMMIG_FEMALE_SHARE = 0.3948   # share of annual inflow that is female
@@ -252,8 +260,9 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
 
     Order each year: survival/births → emigration → immigration inflow.
     Children of immigrant mothers join the immigrant stock.
-    Returns (native_f, native_m, immig_f, immig_m, snapshots, yearly); yearly is a
-    DataFrame of summary totals for each year BASE_YEAR … BASE_YEAR + per (see year_summary).
+    Returns (native_f, native_m, immig_f, immig_m, snapshots, yearly, by_age); yearly is a
+    DataFrame of summary totals for each year BASE_YEAR … BASE_YEAR + per (see year_summary),
+    by_age an array (per + 1, 2, MAX_AGE) of the total female [0] and male [1] population.
     """
     N_nat_f = np.array(pop_native_f, dtype=float)
     N_nat_m = np.array(pop_native_m, dtype=float)
@@ -263,6 +272,7 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
     _snap_set = set(snapshot_years) if snapshot_years else set()
     snapshots = {}
     yearly    = {BASE_YEAR: year_summary(N_nat_f, N_nat_m, N_imm_f, N_imm_m)}
+    by_age    = [(N_nat_f + N_imm_f, N_nat_m + N_imm_m)]
 
     for i in range(per):
         subd_m            = subd_male[i]
@@ -299,13 +309,14 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
 
         year = BASE_YEAR + i + 1
         yearly[year] = year_summary(N_nat_f, N_nat_m, N_imm_f, N_imm_m)
+        by_age.append((N_nat_f + N_imm_f, N_nat_m + N_imm_m))
         if _snap_set:
             if year in _snap_set:
                 snapshots[year] = (N_nat_f.copy(), N_nat_m.copy(),
                                    N_imm_f.copy(), N_imm_m.copy())
 
     yearly = pd.DataFrame.from_dict(yearly, orient='index').rename_axis('year')
-    return N_nat_f, N_nat_m, N_imm_f, N_imm_m, snapshots, yearly
+    return N_nat_f, N_nat_m, N_imm_f, N_imm_m, snapshots, yearly, np.array(by_age)
 
 
 def _disaggregate_5yr(counts_5yr, lx):
@@ -422,3 +433,80 @@ def compute_indicators(out_female, out_male):
         'working_age': working_age,
         'old_age':     old_age,
     }
+
+
+def load_emp_rates():
+    """
+    Load employment rates by sex and 5-year age group (15-19 … 70-74, 75+) and
+    expand to single-year fractions of length MAX_AGE (0 below age 15, the 75+
+    rate for ages 75 and older).
+
+    Returns (female_rate, male_rate).
+    """
+    s  = requests.get(URL_EMP_RATES, timeout=60)
+    s.raise_for_status()
+    df = pd.read_csv(io.StringIO(s.text))
+
+    def expand(rates_pct):
+        r = np.zeros(MAX_AGE)
+        r[EMP_AGE_MIN:75] = np.repeat(rates_pct[:12], 5) / 100
+        r[75:]            = rates_pct[12] / 100
+        return r
+
+    return expand(df['female_rate'].values), expand(df['male_rate'].values)
+
+
+def load_productivity_growth():
+    """Annual real change (%) of labour productivity per employed person, as a Series by year."""
+    s = requests.get(URL_PRODUCTIVITY, timeout=60)
+    s.raise_for_status()
+    df = pd.read_csv(io.StringIO(s.text))
+    return df.set_index('year')['growth_pct']
+
+
+def mean_growth(growth_pct, first, last):
+    """Geometric mean annual growth (%) over the years first+1 … last."""
+    g = growth_pct.loc[first + 1:last]
+    return (np.prod(1 + g / 100) ** (1 / len(g)) - 1) * 100
+
+
+def employment_path(by_age, rate_f, rate_m, shift_prime=0.0, shift_older=0.0):
+    """
+    Employed persons each year from projected population by age.
+
+    by_age      - array (T + 1, 2, MAX_AGE): female [0] and male [1] population per year
+    rate_f/m    - base-year employment rates by single year of age (fractions)
+    shift_prime - change in employment rate at ages 20–54 by the final year (fraction)
+    shift_older - change in employment rate at ages 55–74 by the final year (fraction)
+
+    The shifts are phased in linearly from 0 in the base year; adjusted rates are
+    kept within [0, EMP_RATE_MAX]. Returns an array of length T + 1.
+    """
+    T     = len(by_age) - 1
+    phase = np.arange(T + 1) / T if T > 0 else np.zeros(1)
+    employed = np.empty(T + 1)
+    for t in range(T + 1):
+        shift = np.zeros(MAX_AGE)
+        shift[EMP_PRIME[0]:EMP_PRIME[1]] = shift_prime * phase[t]
+        shift[EMP_OLDER[0]:EMP_OLDER[1]] = shift_older * phase[t]
+        rf = np.where(shift != 0, np.clip(rate_f + shift, 0, EMP_RATE_MAX), rate_f)
+        rm = np.where(shift != 0, np.clip(rate_m + shift, 0, EMP_RATE_MAX), rate_m)
+        employed[t] = (by_age[t, 0] * rf).sum() + (by_age[t, 1] * rm).sum()
+    return employed
+
+
+def required_productivity(employed, population, growth=0.0):
+    """
+    Productivity needed for output per person to grow at rate growth per year.
+
+    Output per person = productivity × employed / population, so
+    productivity_t / productivity_0 = (1 + growth)^t × (E_0 / P_0) / (E_t / P_t).
+
+    Returns (index, annual): index has length T + 1 (base year = 1),
+    annual is the required growth rate in each projection year (length T).
+    """
+    ratio  = np.asarray(employed) / np.asarray(population)
+    t      = np.arange(len(ratio))
+    index  = (1 + growth) ** t * ratio[0] / ratio
+    annual = index[1:] / index[:-1] - 1
+    return index, annual
