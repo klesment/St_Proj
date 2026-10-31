@@ -210,6 +210,18 @@ def build_immig_vectors(annual_total, dist_female, dist_male, per):
     return imm_f, imm_m
 
 
+def year_summary(nat_f, nat_m, imm_f, imm_m):
+    """Population totals by mother tongue and by age group for one year."""
+    total = nat_f + nat_m + imm_f + imm_m
+    return {
+        'estonian':    (nat_f + nat_m).sum(),
+        'other':       (imm_f + imm_m).sum(),
+        'school_age':  total[AGE_SCHOOL_MIN:AGE_SCHOOL_MAX].sum(),
+        'working_age': total[AGE_WORK_MIN:AGE_WORK_MAX].sum(),
+        'old_age':     total[AGE_OLD_MIN:].sum(),
+    }
+
+
 def project_both_sexes(lmat_female, subd_male, l0_ratio,
                        pop_native_f, pop_native_m,
                        pop_immig_f,  pop_immig_m,
@@ -240,7 +252,8 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
 
     Order each year: survival/births → emigration → immigration inflow.
     Children of immigrant mothers join the immigrant stock.
-    Returns (native_f, native_m, immig_f, immig_m).
+    Returns (native_f, native_m, immig_f, immig_m, snapshots, yearly); yearly is a
+    DataFrame of summary totals for each year BASE_YEAR … BASE_YEAR + per (see year_summary).
     """
     N_nat_f = np.array(pop_native_f, dtype=float)
     N_nat_m = np.array(pop_native_m, dtype=float)
@@ -249,6 +262,7 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
 
     _snap_set = set(snapshot_years) if snapshot_years else set()
     snapshots = {}
+    yearly    = {BASE_YEAR: year_summary(N_nat_f, N_nat_m, N_imm_f, N_imm_m)}
 
     for i in range(per):
         subd_m            = subd_male[i]
@@ -283,13 +297,15 @@ def project_both_sexes(lmat_female, subd_male, l0_ratio,
         N_nat_f, N_nat_m = N_nat_f_new, N_nat_m_new
         N_imm_f, N_imm_m = N_imm_f_new, N_imm_m_new
 
+        year = BASE_YEAR + i + 1
+        yearly[year] = year_summary(N_nat_f, N_nat_m, N_imm_f, N_imm_m)
         if _snap_set:
-            year = BASE_YEAR + i + 1
             if year in _snap_set:
                 snapshots[year] = (N_nat_f.copy(), N_nat_m.copy(),
                                    N_imm_f.copy(), N_imm_m.copy())
 
-    return N_nat_f, N_nat_m, N_imm_f, N_imm_m, snapshots
+    yearly = pd.DataFrame.from_dict(yearly, orient='index').rename_axis('year')
+    return N_nat_f, N_nat_m, N_imm_f, N_imm_m, snapshots, yearly
 
 
 def _disaggregate_5yr(counts_5yr, lx):

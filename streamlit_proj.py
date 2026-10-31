@@ -70,7 +70,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
     e0m_base = _lt_male['Tx'].iloc[0]   / _lt_male['lx'].iloc[0]
     if period == 0:
         d = pd.DataFrame({'tfr': [tfr_start], 'mab': [mab_stop], 'sd_mab': [SD_MAB_BASE]})
-        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base, {}
+        return d, np.array(n0_nat_f), np.array(n0_nat_m), np.array(n0_imm_f), np.array(n0_imm_m), e0_base, e0m_base, {}, None
 
     d = build_scenario_df(tfr_start, tfr_change, ramp_speed, mab_stop, period, osc_amp, osc_cycle)
     F = np.array([asfr_gamma(r.tfr, r.mab, r.sd_mab) for r in d.itertuples(index=False)])
@@ -113,7 +113,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
     imm_inflow_f = np.tile(np.array(base_imm_f) * baseline_inflow, (period, 1)) + scen_imm_f
     imm_inflow_m = np.tile(np.array(base_imm_m) * baseline_inflow, (period, 1)) + scen_imm_m
 
-    nat_f, nat_m, out_imm_f, out_imm_m, snapshots = project_both_sexes(
+    nat_f, nat_m, out_imm_f, out_imm_m, snapshots, yearly = project_both_sexes(
         np.array(LL), subd_m_arr, l0_r_arr,
         n0_nat_f, n0_nat_m, n0_imm_f, n0_imm_m,
         nat_inflow_f, nat_inflow_m,
@@ -123,7 +123,7 @@ def run_projection(tfr_start, tfr_change, ramp_speed, mab_stop, period, extra_im
         period,
         snapshot_years=(2050, 2075, 2100),
     )
-    return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end, snapshots
+    return d, nat_f, nat_m, out_imm_f, out_imm_m, e0_end, e0m_end, snapshots, yearly
 
 
 # --- Data ---
@@ -221,7 +221,7 @@ def user_input_features(tfr_start):
 TFR_Change, Ramp, mab_stop, period, extra_immig, mort_improvement, baseline_inflow, emigration_scale, osc_amp, osc_cycle = user_input_features(tfr_start)
 
 # --- Projection ---
-d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end, snapshots = run_projection(
+d, nat_f, nat_m, imm_f, imm_m, e0_end, e0m_end, snapshots, yearly = run_projection(
     tfr_start, TFR_Change, Ramp, mab_stop, period, extra_immig,
     mort_improvement, baseline_inflow, emigration_scale,
     _lt_female=lt_base, _lt_male=lt_male_base,
@@ -385,6 +385,41 @@ ax2.text(xlim[1] * 0.97, ylim[0] + 1, 'Naised →', ha='right', va='bottom', fon
 st.caption(f"Rahvastikupüramiid {BASE_YEAR + period} aastal, emakeele lõikes  |  Kriipsjoon eraldab andmepõhised ja prognoositud kohordid")
 st.pyplot(fig2, width='stretch')
 plt.close(fig2)
+
+# --- Population and age structure over time ---
+if period > 0:
+    st.divider()
+    col_p, col_s = st.columns(2)
+    years = yearly.index.values
+    with plt.rc_context({
+        "axes.facecolor": "white", "axes.grid": True, "grid.color": "#cccccc",
+        "font.size": 20, "axes.titlesize": 24, "axes.labelsize": 20,
+        "xtick.labelsize": 20, "ytick.labelsize": 20,
+    }):
+        with col_p:
+            fig3, ax3 = plt.subplots(figsize=FIGURE_SIZE)
+            ax3.stackplot(years, yearly['estonian'] / 1000, yearly['other'] / 1000,
+                          colors=['#2e86c1', '#e8923a'], labels=['Eesti emakeel', 'Muu emakeel'])
+            ax3.set(ylabel='Tuhat inimest', xlabel='Aasta')
+            ax3.set_ylim(bottom=0)
+            ax3.legend(loc='lower left')
+            st.caption(f"Rahvaarv {BASE_YEAR}–{BASE_YEAR + period}, emakeele lõikes")
+            st.pyplot(fig3)
+            plt.close(fig3)
+
+        with col_s:
+            total_yr = yearly[['estonian', 'other']].sum(axis=1)
+            fig4, ax4 = plt.subplots(figsize=FIGURE_SIZE)
+            for col, label, color in [('school_age',  '0–17',  '#3aae82'),
+                                      ('working_age', '18–64', '#2e86c1'),
+                                      ('old_age',     '65+',   '#e05252')]:
+                ax4.plot(years, yearly[col] / total_yr * 100, linewidth=2.5, color=color, label=label)
+            ax4.set(ylabel='%', xlabel='Aasta')
+            ax4.set_ylim(0, 100)
+            ax4.legend(loc='upper left', ncol=3)
+            st.caption(f"Vanusrühmade osakaal kogurahvastikus {BASE_YEAR}–{BASE_YEAR + period}")
+            st.pyplot(fig4)
+            plt.close(fig4)
 
 # --- Non-Estonian summary metrics ---
 imm_total_end   = int(round(imm_f.sum()    + imm_m.sum()))
