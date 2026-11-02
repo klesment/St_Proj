@@ -21,7 +21,7 @@ streamlit run entry.py
 | `allikad.py` | Data sources page |
 | `fetch_immig_data.py` | One-time script: fetch migration data from stat.ee, save CSVs to data repo |
 | `fetch_population.py` | Script: fetch 1 January population by single age (RV0212) for the data repo |
-| `fetch_labour_data.py` | Script: fetch employment rates (TT330), productivity growth (RAL0013) and EU comparison (Eurostat) for the data repo |
+| `fetch_labour_data.py` | Script: fetch employment rates (TT330), productivity growth (RAL0013), EU comparison and government spending (Eurostat) for the data repo |
 | `plot_migration_rates.py` | Diagnostic script: plot in/out rates by age (not part of the app) |
 
 ## Key Constants (`projection.py`)
@@ -66,9 +66,10 @@ streamlit run entry.py
 |---|---|---|---|
 | `URL_EMP_RATES` | `emp_rates_2025.csv` | Employment rate (%) by sex and 5-yr age group 15–74, 75+, 2025 | TT330 |
 | `URL_PRODUCTIVITY` | `productivity_growth.csv` | Annual real change (%) of productivity per employed person, 1996– | RAL0013 |
+| `URL_GOV_SPENDING` | `gov_spending.csv` | Government expenditure by function (total, health, education, old age, survivors, family), % of GDP | Eurostat gov_10a_exp (COFOG) |
 | `URL_EU_PRODUCTIVITY` | `eu_productivity.csv` | Estonia's productivity per employed person, % of EU27 (PPS), and EU27 real productivity growth | Eurostat tesem160, nama_10_lp_ulc |
 
-Productivity page: employed = projected population by sex and age × employment rate (user shifts for ages 20–54 and 55–74 phased in linearly, capped at 95%). Target (selectable): total output, A_t = (1+g)^t × E_0/E_t (default), or output per person, A_t = (1+g)^t × (E_0/P_0)/(E_t/P_t), growing at g from the 2025 level; or EU average, A_t = (1+g_EU)^t × (1/r_0)^(min(t,T)/T), where r_0 is Estonia's 2025 level relative to the EU and T the years to catch up (`catch_up_productivity`). The demographic scenario is taken from the Model page via `st.session_state['scenario']` (Model defaults if not visited); the page has its own target year.
+Productivity page: employed = projected population by sex and age × employment rate (user shifts for ages 20–54 and 55–74 phased in linearly, capped at 95%). Target (selectable): total output, A_t = (1+g)^t × E_0/E_t (default), or output per person, A_t = (1+g)^t × (E_0/P_0)/(E_t/P_t), growing at g from the 2025 level; or EU average, A_t = (1+g_EU)^t × (1/r_0)^(min(t,T)/T), where r_0 is Estonia's 2025 level relative to the EU and T the years to catch up (`catch_up_productivity`); or public spending: real spending per person fixed by age group (0–17, 18–64, 65+; weights from COFOG via `spending_weights`, health weighted HEALTH_OLD_RATIO for 65+), S_t = Σ w_g P_g,t, A_t = (S_t/S_0)(E_0/E_t) keeps spending/GDP constant; spending/GDP at productivity growth g_A: τ_t = τ_0 (S_t/S_0) / ((1+g_A)^t E_t/E_0). The demographic scenario is taken from the Model page via `st.session_state['scenario']` (Model defaults if not visited); the page has its own target year.
 
 ## Model Logic
 

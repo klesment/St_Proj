@@ -2,12 +2,14 @@
 import streamlit as st
 
 st.set_page_config(page_title="Tööjõu tootlikkus | Eesti rahvastikuprognoos")
+import numpy as np
 import matplotlib.pyplot as plt
 
 from projection import (
     BASE_YEAR, MAB_BASE, EMP_PRIME, EMP_OLDER,
-    last_known_tfr, load_emp_rates, load_productivity_growth, load_eu_productivity, mean_growth,
-    employment_path, required_productivity, catch_up_productivity,
+    last_known_tfr, load_emp_rates, load_productivity_growth, load_eu_productivity, load_gov_spending,
+    mean_growth, employment_path, required_productivity, catch_up_productivity,
+    age_group_totals, spending_weights, public_spending_index,
 )
 from model import load_base, run_scenario
 
@@ -25,12 +27,26 @@ TEXT = {
         intro=('Kui hõivatute arv kahaneb, peab iga töötaja tootma rohkem, et toodang (SKP) ei väheneks. '
                'See leht arvutab, kui kiiresti peaks tööjõu tootlikkus kasvama, et toodang kokku või '
                'toodang inimese kohta püsiks 2025. aasta tasemel või kasvaks valitud määraga, või et '
-               'Eesti jõuaks tootlikkuselt järele ELi keskmisele.'),
+               'Eesti jõuaks tootlikkuselt järele ELi keskmisele, või et avalikud kulud ei suurendaks '
+               'maksukoormust.'),
         loading='Laadin andmeid...',
         load_error='Andmete laadimine ebaõnnestus. Palun kontrollige internetiühendust ja proovige lehte uuesti laadida.',
         sidebar='Vali eeldused',
         target_year='Sihtaasta',
         target='Eesmärk', opt_total='Toodang kokku', opt_pp='Toodang inimese kohta', opt_eu='ELi keskmine',
+        opt_public='Avalikud kulud',
+        w_child='Avalikud kulud inimese kohta, 0–17 (18–64 = 1)',
+        w_old='Avalikud kulud inimese kohta, 65+ (18–64 = 1)',
+        w_help=('Vaikeväärtus Eurostati andmetest ({gy}): haridus ja peretoetused → 0–17, vanadus- ja '
+                'toitjakaotuspensionid → 65+, tervishoid 65+ kolmekordse kaaluga, ülejäänud kulud võrdselt '
+                'inimese kohta.'),
+        prod_growth='Tootlikkuse kasv (%/a)',
+        prod_growth_help='Mõjutab kulude osa SKPst. Vaikeväärtus: tegelik kasv {a}–{last}.',
+        m_spending='Avalikud kulud vs {year}', m_burden='Kulude osa SKPst {year}',
+        public_note=('Avalikud kulud olid {gy}. aastal {tau:.1f}% SKPst (Eurostat). Kulud inimese kohta igas '
+                     'vanuserühmas püsivad reaalselt muutumatud. Vajalik tootlikkuse kasv hoiab kulude osa SKPst '
+                     'muutumatuna; kui tootlikkus kasvab {g:.1f}%/a, on kulude osa SKPst {year}. aastal {tau_t:.1f}%.'),
+        cap_burden='Avalike kulude osa SKPst, tootlikkuse kasv {g:.1f}%/a', lab_base='{gy} tase',
         catch_up_year='Järelejõudmise aasta',
         eu_growth='ELi tootlikkuse kasv (%/a)',
         eu_growth_help='Eurostat: ELi keskmine {a}–{last} oli {g:.2f}%/a.',
@@ -68,6 +84,9 @@ aastal $t$ (baasaasta = 1):
 - toodang inimese kohta: $$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
 - ELi keskmine: $$A_t = (1+g_{EL})^t \cdot (1/r_0)^{\min(t,T)/T}$$, kus $r_0$ on Eesti tase ELi
   suhtes baasaastal ja $T$ aastate arv järelejõudmiseni
+- avalikud kulud: $$A_t = \frac{S_t}{S_0} \cdot \frac{E_0}{E_t}$$, kus $S_t = \sum_g w_g P_{g,t}$ on
+  reaalsed avalikud kulud ($w_g$ – kulud inimese kohta vanuserühmas $g$, $P_{g,t}$ – rahvaarv).
+  Kulude osa SKPst tootlikkuse kasvu $g_A$ korral: $\tau_t = \tau_0 \cdot \frac{S_t / S_0}{(1+g_A)^t \, E_t / E_0}$
 
 kus $E_t$ on hõivatute arv ja $P_t$ rahvaarv. Hõivatute arv = prognoositud rahvastik soo ja
 vanuse järgi × hõivemäär. Hõivemäärad on 2025. aasta tööjõu-uuringu tulemused soo ja
@@ -80,12 +99,24 @@ lineaarselt ja hõivemäär ei ületa 95%. Tootlikkus on mõõdetud hõivatu, mi
         intro=('When the number of employed people shrinks, each worker has to produce more for output (GDP) '
                'not to fall. This page calculates how fast labour productivity would have to grow to keep total '
                'output or output per person at the 2025 level, or growing at a chosen rate, or for Estonia to '
-               'catch up with the EU average productivity level.'),
+               'catch up with the EU average productivity level, or for public spending not to raise the tax burden.'),
         loading='Loading data...',
         load_error='Failed to load data. Please check your internet connection and reload the page.',
         sidebar='Select assumptions',
         target_year='Target year',
         target='Target', opt_total='Total output', opt_pp='Output per person', opt_eu='EU average',
+        opt_public='Public spending',
+        w_child='Public spending per person, 0–17 (18–64 = 1)',
+        w_old='Public spending per person, 65+ (18–64 = 1)',
+        w_help=('Default from Eurostat data ({gy}): education and family benefits → 0–17, old-age and '
+                'survivors\' pensions → 65+, health with triple weight for 65+, all other spending equal per person.'),
+        prod_growth='Productivity growth (%/yr)',
+        prod_growth_help='Affects spending as a share of GDP. Default: actual growth {a}–{last}.',
+        m_spending='Public spending vs {year}', m_burden='Spending, % of GDP {year}',
+        public_note=('Public spending was {tau:.1f}% of GDP in {gy} (Eurostat). Spending per person in each age '
+                     'group stays fixed in real terms. The required productivity growth keeps spending as a share '
+                     'of GDP unchanged; with productivity growing {g:.1f}%/yr, spending is {tau_t:.1f}% of GDP in {year}.'),
+        cap_burden='Public spending, % of GDP, productivity growth {g:.1f}%/yr', lab_base='{gy} level',
         catch_up_year='Catch-up year',
         eu_growth='EU productivity growth (%/yr)',
         eu_growth_help='Eurostat: the EU average in {a}–{last} was {g:.2f}%/yr.',
@@ -123,6 +154,9 @@ in year $t$ (base year = 1) is
 - output per person: $$A_t = (1+g)^t \cdot \frac{E_0 / P_0}{E_t / P_t}$$
 - EU average: $$A_t = (1+g_{EU})^t \cdot (1/r_0)^{\min(t,T)/T}$$, where $r_0$ is Estonia's level
   relative to the EU in the base year and $T$ the number of years to catch up
+- public spending: $$A_t = \frac{S_t}{S_0} \cdot \frac{E_0}{E_t}$$, where $S_t = \sum_g w_g P_{g,t}$ is real
+  public spending ($w_g$ – spending per person in age group $g$, $P_{g,t}$ – population). Spending as a
+  share of GDP with productivity growth $g_A$: $\tau_t = \tau_0 \cdot \frac{S_t / S_0}{(1+g_A)^t \, E_t / E_0}$
 
 where $E_t$ is the number of employed persons and $P_t$ the population. Employed persons =
 projected population by sex and age × employment rate. Employment rates are the 2025 labour
@@ -137,7 +171,7 @@ per employed person, not per hour worked.
 @st.cache_data
 def load_labour_data():
     rate_f, rate_m = load_emp_rates()
-    return rate_f, rate_m, load_productivity_growth(), load_eu_productivity()
+    return rate_f, rate_m, load_productivity_growth(), load_eu_productivity(), load_gov_spending()
 
 
 lang = st.radio("Language", ["ET", "EN"], horizontal=True, label_visibility="hidden")
@@ -150,7 +184,7 @@ st.markdown(T['intro'])
 try:
     with st.spinner(T['loading']):
         b = load_base()
-        rate_f, rate_m, prod_growth, eu_prod = load_labour_data()
+        rate_f, rate_m, prod_growth, eu_prod, gov = load_labour_data()
 except Exception as e:
     st.error(T['load_error'])
     st.exception(e)
@@ -158,7 +192,7 @@ except Exception as e:
 
 # --- Sidebar ---
 st.sidebar.markdown(T['sidebar'])
-TARGETS = {'total': 'opt_total', 'per_person': 'opt_pp', 'eu': 'opt_eu'}
+TARGETS = {'total': 'opt_total', 'per_person': 'opt_pp', 'eu': 'opt_eu', 'public': 'opt_public'}
 _target = st.sidebar.segmented_control(T['target'], options=list(TARGETS),
                                        format_func=lambda o: T[TARGETS[o]],
                                        selection_mode='single', default='total', key='prod_target')
@@ -176,6 +210,21 @@ if target == 'eu':
                                       value=float(round(eu_mean, 1)), key='prod_eu_growth',
                                       help=T['eu_growth_help'].format(a=BENCHMARK_START[1], last=eu_last,
                                                                       g=eu_mean)) / 100
+elif target == 'public':
+    gov_year   = int(gov['total'].last_valid_index())
+    base_groups = age_group_totals(np.array(b.N0) + np.array(b.N0_male))
+    wc0, wo0   = spending_weights(gov.loc[gov_year], base_groups)
+    w_help     = T['w_help'].format(gy=gov_year)
+    w_child    = st.sidebar.slider(T['w_child'], min_value=0.5, max_value=5.0, step=0.1,
+                                   value=float(round(wc0, 1)), help=w_help, key='prod_w_child')
+    w_old      = st.sidebar.slider(T['w_old'], min_value=0.5, max_value=6.0, step=0.1,
+                                   value=float(round(wo0, 1)), help=w_help, key='prod_w_old')
+    prod_g     = st.sidebar.slider(T['prod_growth'], min_value=0.0, max_value=3.0, step=0.1,
+                                   value=float(round(mean_growth(prod_growth, BENCHMARK_START[1],
+                                                                 int(prod_growth.index.max())), 1)),
+                                   help=T['prod_growth_help'].format(a=BENCHMARK_START[1],
+                                                                     last=int(prod_growth.index.max())),
+                                   key='prod_public_growth') / 100
 else:
     growth = st.sidebar.slider(T['growth'], min_value=0.0, max_value=4.0, step=0.25, value=0.0,
                                help=T['growth_help'], key='prod_growth') / 100
@@ -212,6 +261,12 @@ if target == 'eu':
     level_year = BASE_YEAR if BASE_YEAR in level_hist.index else int(level_hist.index.max())
     index, annual, level = catch_up_productivity(period, catch_up_year - BASE_YEAR,
                                                  level_hist[level_year] / 100, eu_growth)
+elif target == 'public':
+    spending = public_spending_index(age_group_totals(by_age.sum(axis=1)), w_child, w_old)
+    index    = spending * employed[0] / employed
+    annual   = index[1:] / index[:-1] - 1
+    tau0     = gov.loc[gov_year, 'total']
+    tau      = tau0 * spending / ((1 + prod_g) ** (years - BASE_YEAR) * employed / employed[0])
 else:
     index, annual = required_productivity(employed, population, growth, per_person)
 avg_required  = index[-1] ** (1 / period) - 1
@@ -228,15 +283,24 @@ c1.metric(T['m_employed'], f"{employed[-1] / 1000:,.0f} {T['thousand']}",
 if target == 'eu':
     output = round((index[-1] * employed[-1] / employed[0] - 1) * 100) + 0
     c2.metric(T['m_output'].format(year=BASE_YEAR), f"{output:+d}%" if output else "0%", border=False)
+elif target == 'public':
+    spend_pct = round((spending[-1] - 1) * 100) + 0
+    c2.metric(T['m_spending'].format(year=BASE_YEAR), f"{spend_pct:+d}%" if spend_pct else "0%", border=False)
 else:
     c2.metric(T['m_ratio'], f"{ratio[-1] * 100:.1f}%", f"{(ratio[-1] - ratio[0]) * 100:+.1f}pp", border=False)
 if target == 'eu':   # constant during catch-up, so the first year's rate is the rate until catch-up_year
     c3.metric(T['m_required_eu'].format(cy=catch_up_year), f"{annual[0] * 100:.2f}{T['per_year']}", border=False)
 else:
     c3.metric(T['m_required'], f"{avg_required * 100:.2f}{T['per_year']}", border=False)
-cumul = round((index[-1] - 1) * 100) + 0   # + 0 turns -0 into 0
-c4.metric(T['m_cumul'].format(year=BASE_YEAR), f"{cumul:+d}%" if cumul else "0%", border=False)
+if target == 'public':
+    c4.metric(T['m_burden'].format(year=target_year), f"{tau[-1]:.1f}%", f"{tau[-1] - tau0:+.1f}pp",
+              delta_color='inverse', border=False)
+else:
+    cumul = round((index[-1] - 1) * 100) + 0   # + 0 turns -0 into 0
+    c4.metric(T['m_cumul'].format(year=BASE_YEAR), f"{cumul:+d}%" if cumul else "0%", border=False)
 a0, a1 = BENCHMARK_START
+if target == 'public':
+    st.caption(T['public_note'].format(gy=gov_year, tau=tau0, g=prod_g * 100, year=target_year, tau_t=tau[-1]))
 if target == 'eu':
     st.caption(T['eu_note'].format(year=level_year, lvl=level_hist[level_year], cy=catch_up_year))
 st.caption(T['benchmark'].format(a0=a0, a1=a1, last=last_data, g0=bench[a0], g1=bench[a1]))
@@ -255,6 +319,13 @@ with plt.rc_context(CHART_STYLE):
             ax.set(ylabel='%', xlabel=T['xlab'])
             ax.legend(loc='lower right', fontsize=14)
             st.caption(T['cap_eu'])
+        elif target == 'public':
+            ax.plot(years, tau, linewidth=2.5, color='#2e86c1')
+            ax.axhline(tau0, color='#555555', linewidth=1.5, linestyle='--', label=T['lab_base'].format(gy=gov_year))
+            ax.set_ylim(min(tau.min(), tau0) - 2, max(tau.max(), tau0) + 2)
+            ax.set(ylabel='%', xlabel=T['xlab'])
+            ax.legend(loc='best', fontsize=14)
+            st.caption(T['cap_burden'].format(g=prod_g * 100))
         elif per_person:
             ax.plot(years, ratio * 100, linewidth=2.5, color='#2e86c1')
             ax.set(ylabel=T['ylab_ratio'], xlabel=T['xlab'])

@@ -10,6 +10,8 @@ Outputs:
   eu_productivity.csv       -- Estonia's labour productivity per employed person,
                                % of EU27 (PPS, Eurostat tesem160), and EU27 real
                                productivity growth per person (%, nama_10_lp_ulc)
+  gov_spending.csv          -- general government expenditure by function (COFOG),
+                               % of GDP (Eurostat gov_10a_exp)
 
 Usage: python fetch_labour_data.py [year]   (default 2025)
 Commit the CSVs to the data repo (klesment/PopProj).
@@ -109,3 +111,18 @@ eu = pd.DataFrame({
 eu.to_csv('eu_productivity.csv')
 print(f'  Saved eu_productivity.csv ({eu.index.min()}–{eu.index.max()}); '
       f'Estonia {eu.ee_level_pct_eu.last_valid_index()}: {eu.ee_level_pct_eu.dropna().iloc[-1]}% of EU')
+
+
+# ---------------------------------------------------------------------------
+# 4. Government expenditure by function -- Eurostat gov_10a_exp (COFOG)
+#    General government (S13), total expenditure, % of GDP
+# ---------------------------------------------------------------------------
+COFOG = {'TOTAL': 'total', 'GF07': 'health', 'GF09': 'education',
+         'GF1002': 'old_age', 'GF1003': 'survivors', 'GF1004': 'family'}
+print('Fetching Eurostat gov_10a_exp (government expenditure by function)...')
+gov = pd.DataFrame({name: eurostat_series('gov_10a_exp', geo='EE', sector='S13', na_item='TE',
+                                          unit='PC_GDP', cofog99=code)
+                    for code, name in COFOG.items()}).rename_axis('year').dropna(how='all')
+gov.to_csv('gov_spending.csv')
+last = gov['total'].last_valid_index()
+print(f'  Saved gov_spending.csv ({gov.index.min()}–{last}); {last}: total {gov.loc[last, "total"]}% of GDP')

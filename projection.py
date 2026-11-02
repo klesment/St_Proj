@@ -19,6 +19,7 @@ URL_IMMIG_BASELINE = 'https://raw.githubusercontent.com/klesment/PopProj/main/im
 URL_EMP_RATES      = 'https://raw.githubusercontent.com/klesment/PopProj/main/emp_rates_2025.csv'
 URL_PRODUCTIVITY   = 'https://raw.githubusercontent.com/klesment/PopProj/main/productivity_growth.csv'
 URL_EU_PRODUCTIVITY = 'https://raw.githubusercontent.com/klesment/PopProj/main/eu_productivity.csv'
+URL_GOV_SPENDING   = 'https://raw.githubusercontent.com/klesment/PopProj/main/gov_spending.csv'
 
 # Demographic constants
 BASE_YEAR           = 2025    # projection starts from the 1 January population of this year
@@ -50,6 +51,7 @@ EMP_AGE_MIN   = 15     # youngest age group in the labour force survey
 EMP_PRIME     = (20, 55)   # prime working ages 20–54
 EMP_OLDER     = (55, 75)   # older working ages 55–74
 EMP_RATE_MAX  = 0.95   # upper bound for adjusted employment rates
+HEALTH_OLD_RATIO = 3.0  # assumed health spending per person aged 65+ relative to under 65
 
 # Immigration constants — derived from RVR09 2017-2019 average, excl. Estonian returnees
 IMMIG_FEMALE_SHARE = 0.3948   # share of annual inflow that is female
@@ -548,3 +550,51 @@ def catch_up_productivity(period, catch_up_years, level0, eu_growth):
     level = level0 * gap ** (np.minimum(t, catch_up_years) / catch_up_years)
     index = (1 + eu_growth) ** t * level / level0
     return index, index[1:] / index[:-1] - 1, level
+
+
+def load_gov_spending():
+    """Government expenditure by function (% of GDP) as a DataFrame indexed by year."""
+    s = requests.get(URL_GOV_SPENDING, timeout=60)
+    s.raise_for_status()
+    return pd.read_csv(io.StringIO(s.text)).set_index('year')
+
+
+def age_group_totals(pop):
+    """Population aged 0–17, 18–64 and 65+ (last axis = age); returns an array (..., 3)."""
+    pop = np.asarray(pop)
+    return np.stack([pop[..., AGE_SCHOOL_MIN:AGE_SCHOOL_MAX].sum(-1),
+                     pop[..., AGE_WORK_MIN:AGE_WORK_MAX].sum(-1),
+                     pop[..., AGE_OLD_MIN:].sum(-1)], axis=-1)
+
+
+def spending_weights(gov, groups):
+    """
+    Public spending per person aged 0–17 and 65+ relative to ages 18–64.
+
+    gov    - one row of government expenditure by function (% of GDP)
+    groups - population aged 0–17, 18–64, 65+
+
+    Education and family benefits are assigned to ages 0–17, old-age and survivors'
+    pensions to 65+, health spending by person with ages 65+ weighted HEALTH_OLD_RATIO;
+    all remaining spending is the same per person at every age.
+
+    Returns (w_child, w_old).
+    """
+    child, work, old = groups
+    total  = child + work + old
+    health = gov['health'] / (child + work + HEALTH_OLD_RATIO * old)   # per person under 65
+    rest   = (gov['total'] - gov['education'] - gov['family'] - gov['old_age']
+              - gov['survivors'] - gov['health']) / total
+    per_person = np.array([(gov['education'] + gov['family']) / child + health + rest,
+                           health + rest,
+                           (gov['old_age'] + gov['survivors']) / old + HEALTH_OLD_RATIO * health + rest])
+    return per_person[0] / per_person[1], per_person[2] / per_person[1]
+
+
+def public_spending_index(groups, w_child, w_old):
+    """
+    Real public spending relative to the base year when spending per person in each
+    age group stays fixed. groups: array (T + 1, 3) of population 0–17, 18–64, 65+.
+    """
+    s = np.asarray(groups) @ np.array([w_child, 1.0, w_old])
+    return s / s[0]
